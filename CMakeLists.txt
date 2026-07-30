@@ -48,6 +48,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Bsp/Src/i2c.c
     Core/Bsp/Src/adc.c
     Core/Dev/Src/oled.c
+    Core/App/Src/Oled_Sys.c
+    Core/App/Src/Sw_Adc_Sys.c
 )
 
 # Add include paths
@@ -55,6 +57,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     Core/Bsp/Inc
     Core/Dev/Inc
+    Core/App/Inc
 )
 
 # Add project symbols (macros)
