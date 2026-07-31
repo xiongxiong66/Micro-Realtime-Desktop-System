@@ -59,6 +59,22 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define SW_Pin GPIO_PIN_2
 #define SW_GPIO_Port GPIOA
+#define MKey_x4_Pin GPIO_PIN_12
+#define MKey_x4_GPIO_Port GPIOB
+#define MKey_x3_Pin GPIO_PIN_13
+#define MKey_x3_GPIO_Port GPIOB
+#define MKey_x2_Pin GPIO_PIN_14
+#define MKey_x2_GPIO_Port GPIOB
+#define MKey_x1_Pin GPIO_PIN_15
+#define MKey_x1_GPIO_Port GPIOB
+#define MKey_y4_Pin GPIO_PIN_8
+#define MKey_y4_GPIO_Port GPIOA
+#define MKey_y3_Pin GPIO_PIN_9
+#define MKey_y3_GPIO_Port GPIOA
+#define MKey_y2_Pin GPIO_PIN_10
+#define MKey_y2_GPIO_Port GPIOA
+#define MKey_y1_Pin GPIO_PIN_11
+#define MKey_y1_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 

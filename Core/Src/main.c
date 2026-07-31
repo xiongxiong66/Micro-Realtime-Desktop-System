@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include "Oled_Sys.h"
 #include "Sw_Adc_Sys.h"
+#include "MKey_Sys.h"
 
 /* USER CODE END Includes */
 
@@ -72,10 +73,22 @@ const osThreadAttr_t Sw_Adc_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow1,
 };
+/* Definitions for MKey */
+osThreadId_t MKeyHandle;
+const osThreadAttr_t MKey_attributes = {
+  .name = "MKey",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow1,
+};
 /* Definitions for cursor */
 osMessageQueueId_t cursorHandle;
 const osMessageQueueAttr_t cursor_attributes = {
   .name = "cursor"
+};
+/* Definitions for Key */
+osMessageQueueId_t KeyHandle;
+const osMessageQueueAttr_t Key_attributes = {
+  .name = "Key"
 };
 /* USER CODE BEGIN PV */
 
@@ -89,6 +102,7 @@ static void MX_I2C1_Init(void);
 void StartDefaultTask(void *argument);
 void Oled_Task(void *argument);
 void Sw_Adc_Task(void *argument);
+void MKey_Task(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -112,7 +126,7 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface \&\& the Systick. */
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -154,6 +168,9 @@ int main(void)
   /* creation of cursor */
   cursorHandle = osMessageQueueNew (1, 6, &cursor_attributes);
 
+  /* creation of Key */
+  KeyHandle = osMessageQueueNew (1, sizeof(uint8_t), &Key_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -167,6 +184,9 @@ int main(void)
 
   /* creation of Sw_Adc */
   Sw_AdcHandle = osThreadNew(Sw_Adc_Task, NULL, &Sw_Adc_attributes);
+
+  /* creation of MKey */
+  MKeyHandle = osThreadNew(MKey_Task, NULL, &MKey_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -217,7 +237,7 @@ void SystemClock_Config(void)
     Error_Handler();
   }
 
-  /** Initializes the CPU, AHB \&\& APB buses clocks
+  /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -348,11 +368,16 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : SW_Pin */
-  GPIO_InitStruct.Pin = SW_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, MKey_x4_Pin|MKey_x3_Pin|MKey_x2_Pin|MKey_x1_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pins : SW_Pin MKey_y4_Pin MKey_y3_Pin MKey_y2_Pin
+                           MKey_y1_Pin */
+  GPIO_InitStruct.Pin = SW_Pin|MKey_y4_Pin|MKey_y3_Pin|MKey_y2_Pin
+                          |MKey_y1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(SW_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB0 */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
@@ -361,8 +386,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  /*Configure GPIO pins : PB1 MKey_x4_Pin MKey_x3_Pin MKey_x2_Pin
+                           MKey_x1_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_1|MKey_x4_Pin|MKey_x3_Pin|MKey_x2_Pin
+                          |MKey_x1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -395,20 +422,56 @@ void StartDefaultTask(void *argument)
   /* USER CODE END 5 */
 }
 
+/* USER CODE BEGIN Header_Oled_Task */
+/**
+* @brief Function implementing the oled thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Oled_Task */
 void Oled_Task(void *argument)
 {
-/* USER CODE BEGIN Oled_Task */
+  /* USER CODE BEGIN Oled_Task */
   Oled_Task_Sys();
- /* USER CODE END Oled_Task */
+  /* USER CODE END Oled_Task */
 }
 
+/* USER CODE BEGIN Header_Sw_Adc_Task */
+/**
+* @brief Function implementing the Sw_Adc thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Sw_Adc_Task */
 void Sw_Adc_Task(void *argument)
 {
-/* USER CODE BEGIN Sw_Adc_Task */
+  /* USER CODE BEGIN Sw_Adc_Task */
   Sw_Adc_Task_Sys();
- /* USER CODE END Sw_Adc_Task */
+  /* USER CODE END Sw_Adc_Task */
 }
 
+/* USER CODE BEGIN Header_MKey_Task */
+/**
+* @brief Function implementing the MKey thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_MKey_Task */
+void MKey_Task(void *argument)
+{
+  /* USER CODE BEGIN MKey_Task */
+  MKey_Task_Sys();
+  /* USER CODE END MKey_Task */
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM4 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -439,7 +502,7 @@ void Error_Handler(void)
 }
 #ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file \&\& the source line number
+  * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.
   * @param  file: pointer to the source file name
   * @param  line: assert_param error line source number

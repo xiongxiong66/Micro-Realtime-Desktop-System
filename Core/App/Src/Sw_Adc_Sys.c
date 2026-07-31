@@ -4,6 +4,8 @@
 
 extern osMessageQueueId_t cursorHandle;
 
+uint8_t state = Statue_NO;
+
 void Sw_Adc_Task_Sys() {
 
     uint16_t adc_x, adc_y;

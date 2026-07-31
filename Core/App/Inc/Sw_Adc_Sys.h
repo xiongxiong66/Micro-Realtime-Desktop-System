@@ -7,7 +7,7 @@
 #define Statue_NO 0
 #define Statue_Yes 1
 
-uint8_t state=Statue_NO;
+extern uint8_t state;
 
 typedef struct {
     int16_t cursor_x;
