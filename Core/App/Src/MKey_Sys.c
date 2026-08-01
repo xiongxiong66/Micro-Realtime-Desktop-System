@@ -9,6 +9,9 @@
 #include "mkey.h"
 #include "keypad.h"
 
+volatile uint32_t mkey_events = 0U;
+volatile uint32_t mkey_dropped = 0U;
+
 void MKey_Task_Sys(void)
 {
     char key;
@@ -19,7 +22,8 @@ void MKey_Task_Sys(void)
     {
         if (MKey_GetKeyEvent(&key) == MKEY_OK)
         {
-            osMessageQueuePut(KeyHandle, &key, 0U, 0U);
+            if (osMessageQueuePut(KeyHandle, &key, 0U, 0U) == osOK) mkey_events++;
+            else mkey_dropped++;
         }
         osDelay(10U);
     }

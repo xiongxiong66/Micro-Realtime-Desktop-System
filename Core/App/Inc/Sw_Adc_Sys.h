@@ -9,6 +9,9 @@
 
 extern uint8_t state;
 
+extern volatile uint32_t adc_events;
+extern volatile uint32_t adc_dropped;
+
 typedef struct {
     int16_t cursor_x;
     int16_t cursor_y;

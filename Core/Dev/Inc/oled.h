@@ -21,6 +21,8 @@ void OLED_Display(void);
 void OLED_Clear(void);
 void OLED_Fill(void);
 void OLED_DrawPixel(uint8_t x, uint8_t y, uint8_t color);
+void OLED_FillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color);
+void OLED_PrintStringColor(uint8_t x, uint8_t y, const char *str, uint8_t color);
 void OLED_SetCursor(uint8_t x, uint8_t y);
 void OLED_PrintChar(char ch);
 void OLED_PrintString(const char *str);

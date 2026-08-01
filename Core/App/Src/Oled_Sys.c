@@ -1,4 +1,5 @@
 #include "Oled_Sys.h"
+#include "Desktop_Sys.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "main.h"
@@ -14,6 +15,7 @@ static void Oled_Lock_Sys(void)
     char key;
 
     /* Discard any keys queued during the previous input. */
+    //清空Key消息队列
     while (osMessageQueueGet(KeyHandle, &key, NULL, 0U) == osOK) { }
 
     for (uint8_t sec = PIN_LOCK_SEC; sec > 0U; sec--)
@@ -47,6 +49,7 @@ static void Oled_Login_Sys(void)
 
     for (;;)
     {
+        //阻塞等待
         if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
         {
             continue;
@@ -77,6 +80,7 @@ static void Oled_Login_Sys(void)
             OLED_Display();
             osDelay(1000U);
 
+            //错误次数增加，进入锁定函数
             wrong_count++;
             if (wrong_count >= PIN_MAX_WRONG)
             {
@@ -84,6 +88,7 @@ static void Oled_Login_Sys(void)
                 wrong_count = 0U;
             }
         }
+        //在达到最大输出长度之前，按键输入到pin_buf中
         else if (pin_len < PIN_MAX_LEN)
         {
             pin_buf[pin_len++] = key;
@@ -102,46 +107,6 @@ static void Oled_Login_Sys(void)
     }
 }
 
-static void Oled_Cursor_Sys(void)
-{
-    CursorMsg_t msg;
-
-    for (;;)
-    {
-        if (osMessageQueueGet(cursorHandle, &msg, NULL, 0U) == osOK)
-        {
-            int16_t cx = (int16_t)msg.cursor_x;
-            int16_t cy = (int16_t)msg.cursor_y;
-
-            OLED_Clear();
-
-            for (int16_t dy = -3; dy <= 3; dy++)
-            {
-                for (int16_t dx = -3; dx <= 3; dx++)
-                {
-                    int16_t px = cx + dx;
-                    int16_t py = cy + dy;
-                    if (dx * dx + dy * dy <= 9
-                     && px >= 0 && px < (int16_t)OLED_WIDTH
-                     && py >= 0 && py < (int16_t)OLED_HEIGHT)
-                    {
-                        OLED_DrawPixel((uint8_t)px, (uint8_t)py, OLED_WHITE);
-                    }
-                }
-            }
-
-            OLED_SetCursor(0, 56);
-            OLED_PrintString("X:");
-            OLED_PrintNum((uint32_t)msg.cursor_x, 10);
-            OLED_PrintString(" Y:");
-            OLED_PrintNum((uint32_t)msg.cursor_y, 10);
-
-            OLED_Display();
-        }
-        osDelay(15U);
-    }
-}
-
 void Oled_Task_Sys(void)
 {
     if (state == Statue_NO)
@@ -151,6 +116,6 @@ void Oled_Task_Sys(void)
 
     if (state == Statue_Yes)
     {
-        Oled_Cursor_Sys();
+        Desktop_Sys_Run();
     }
 }

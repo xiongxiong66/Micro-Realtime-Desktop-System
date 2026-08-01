@@ -11,6 +11,9 @@
 
 extern osMessageQueueId_t KeyHandle;
 
+extern volatile uint32_t mkey_events;
+extern volatile uint32_t mkey_dropped;
+
 void MKey_Task_Sys(void);
 
 #endif /* __MKEY_SYS_H */

@@ -113,6 +113,33 @@ void OLED_DrawPixel(uint8_t x, uint8_t y, uint8_t color) {
     if (color) frame_buffer[idx] |= (uint8_t)(1 << (y % 8));
     else frame_buffer[idx] &= (uint8_t)~(1 << (y % 8));
 }
+void OLED_FillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color) {
+    if (x >= OLED_WIDTH || y >= OLED_HEIGHT) return;
+    if ((uint16_t)x + w > OLED_WIDTH) w = (uint8_t)(OLED_WIDTH - x);
+    if ((uint16_t)y + h > OLED_HEIGHT) h = (uint8_t)(OLED_HEIGHT - y);
+    for (uint8_t yy = 0; yy < h; yy++)
+        for (uint8_t xx = 0; xx < w; xx++)
+            OLED_DrawPixel((uint8_t)(x + xx), (uint8_t)(y + yy), color);
+}
+void OLED_PrintStringColor(uint8_t x, uint8_t y, const char *str, uint8_t color) {
+    if (!str) return;
+    OLED_SetCursor(x, y);
+    while (*str) {
+        char ch = *str;
+        if (ch < 0x20 || ch > 0x7E) ch = ' ';
+        uint8_t idx = (uint8_t)(ch - 0x20);
+        if (cursor_x + 6 > OLED_WIDTH) { cursor_x = 0; cursor_y += 8; }
+        if (cursor_y + 8 > OLED_HEIGHT) { cursor_x = 0; cursor_y = 0; }
+        for (uint8_t col = 0; col < 5; col++) {
+            uint8_t line = font_5x7[idx][col];
+            for (uint8_t row = 0; row < 8; row++)
+                OLED_DrawPixel(cursor_x + col, cursor_y + row, (line & (1 << row)) ? color : OLED_BLACK);
+        }
+        for (uint8_t row = 0; row < 8; row++) OLED_DrawPixel(cursor_x + 5, cursor_y + row, OLED_BLACK);
+        cursor_x += 6;
+        str++;
+    }
+}
 void OLED_SetCursor(uint8_t x, uint8_t y) {
     cursor_x = (x < OLED_WIDTH) ? x : (OLED_WIDTH - 1);
     cursor_y = (y < OLED_HEIGHT) ? y : (OLED_HEIGHT - 1);

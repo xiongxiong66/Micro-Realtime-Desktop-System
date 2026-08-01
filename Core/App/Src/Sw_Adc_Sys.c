@@ -5,6 +5,8 @@
 extern osMessageQueueId_t cursorHandle;
 
 uint8_t state = Statue_NO;
+volatile uint32_t adc_events = 0U;
+volatile uint32_t adc_dropped = 0U;
 
 void Sw_Adc_Task_Sys() {
 
@@ -64,7 +66,8 @@ void Sw_Adc_Task_Sys() {
     msg.cursor_x       = cursor_x;
     msg.cursor_y       = cursor_y;
     msg.button_pressed = button_pressed;
-    osMessageQueuePut(cursorHandle, &msg, 0, 0);
+    if (osMessageQueuePut(cursorHandle, &msg, 0, 0) == osOK) adc_events++;
+    else adc_dropped++;
     osDelay(20);
   }
 }
