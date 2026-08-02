@@ -28,6 +28,8 @@
 #include "Oled_Sys.h"
 #include "Sw_Adc_Sys.h"
 #include "MKey_Sys.h"
+#include "Draw_Sys.h"
+#include "File_Sys.h"
 
 /* USER CODE END Includes */
 
@@ -82,6 +84,20 @@ const osThreadAttr_t MKey_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow1,
 };
+/* Definitions for App_Draw */
+osThreadId_t App_DrawHandle;
+const osThreadAttr_t App_Draw_attributes = {
+  .name = "App_Draw",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for App_File */
+osThreadId_t App_FileHandle;
+const osThreadAttr_t App_File_attributes = {
+  .name = "App_File",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* Definitions for cursor */
 osMessageQueueId_t cursorHandle;
 const osMessageQueueAttr_t cursor_attributes = {
@@ -106,6 +122,8 @@ void StartDefaultTask(void *argument);
 void Oled_Task(void *argument);
 void Sw_Adc_Task(void *argument);
 void MKey_Task(void *argument);
+void App_Draw_Task(void *argument);
+void App_File_Task(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -130,7 +148,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+1  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -191,6 +209,12 @@ int main(void)
 
   /* creation of MKey */
   MKeyHandle = osThreadNew(MKey_Task, NULL, &MKey_attributes);
+
+  /* creation of App_Draw */
+  App_DrawHandle = osThreadNew(App_Draw_Task, NULL, &App_Draw_attributes);
+
+  /* creation of App_File */
+  App_FileHandle = osThreadNew(App_File_Task, NULL, &App_File_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -414,9 +438,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : SW_Pin MKey_y4_Pin MKey_y3_Pin Mkey_y2_Pin
+  /*Configure GPIO pins : SW_Pin MKey_y4_Pin MKey_y3_Pin MKey_y2_Pin
                            MKey_y1_Pin */
-  GPIO_InitStruct.Pin = SW_Pin|MKey_y4_Pin|MKey_y3_Pin|Mkey_y2_Pin
+  GPIO_InitStruct.Pin = SW_Pin|MKey_y4_Pin|MKey_y3_Pin|MKey_y2_Pin
                           |MKey_y1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -505,6 +529,34 @@ void MKey_Task(void *argument)
   /* USER CODE BEGIN MKey_Task */
   MKey_Task_Sys();
   /* USER CODE END MKey_Task */
+}
+
+/* USER CODE BEGIN Header_App_Draw_Task */
+/**
+* @brief Function implementing the App_Draw thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_App_Draw_Task */
+void App_Draw_Task(void *argument)
+{
+  /* USER CODE BEGIN App_Draw_Task */
+  App_Draw_Task_Sys();
+  /* USER CODE END App_Draw_Task */
+}
+
+/* USER CODE BEGIN Header_App_File_Task */
+/**
+* @brief Function implementing the App_File thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_App_File_Task */
+void App_File_Task(void *argument)
+{
+  /* USER CODE BEGIN App_File_Task */
+  App_File_Task_Sys();
+  /* USER CODE END App_File_Task */
 }
 
 /**

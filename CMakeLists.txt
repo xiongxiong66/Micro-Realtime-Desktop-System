@@ -55,6 +55,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/App/Src/Oled_Sys.c
     Core/App/Src/Sw_Adc_Sys.c
     Core/App/Src/MKey_Sys.c
+    Core/App/Src/NameEdit_Sys.c
+    Core/App/Src/Confirm_Sys.c
+    Core/App/Src/Draw_Sys.c
+    Core/App/Src/File_Sys.c
     Core/App/Src/Desktop_Sys.c
 )
 

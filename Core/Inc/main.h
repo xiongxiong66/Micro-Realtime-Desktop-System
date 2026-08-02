@@ -73,8 +73,8 @@ void Error_Handler(void);
 #define MKey_y4_GPIO_Port GPIOA
 #define MKey_y3_Pin GPIO_PIN_9
 #define MKey_y3_GPIO_Port GPIOA
-#define Mkey_y2_Pin GPIO_PIN_10
-#define Mkey_y2_GPIO_Port GPIOA
+#define MKey_y2_Pin GPIO_PIN_10
+#define MKey_y2_GPIO_Port GPIOA
 #define MKey_y1_Pin GPIO_PIN_11
 #define MKey_y1_GPIO_Port GPIOA
 

@@ -9,6 +9,8 @@
 #include "Oled_Sys.h"
 #include "Sw_Adc_Sys.h"
 #include "MKey_Sys.h"
+#include "Draw_Sys.h"
+#include "File_Sys.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "main.h"
@@ -24,7 +26,7 @@
 #define DESKTOP_CELL_W_IN   40U
 #define DESKTOP_CELL_H_IN   22U
 
-#define DESKTOP_STEP        6U
+#define DESKTOP_HYST        4U
 #define DESKTOP_IN_TIMEOUT  1000U
 #define DESKTOP_STACK_WORDS 512U
 
@@ -70,7 +72,38 @@ static AppId_t Desktop_HitTest(const CursorMsg_t *cur)
     return (AppId_t)(row * DESKTOP_GRID_COLS + col);                //row为0——1，col为0——2，返回值为0——5，正好对应应用ID
 }
 
-static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive)
+/* æ»åéä¸­ï¼åæ åå¨æ ¼è¾¹çéè¿æ¶ä¿æåéä¸­ï¼é¿åé«äº®å·¦å³è·³å¨ */
+static AppId_t Desktop_SelectApp(const CursorMsg_t *cur, AppId_t last)
+{
+    AppId_t hit = Desktop_HitTest(cur);
+
+    if (hit == last) return hit;
+    if (last == APP_COUNT || hit == APP_COUNT) return hit;
+
+    {
+        int16_t lr = (int16_t)(last / DESKTOP_GRID_COLS);
+        int16_t lc = (int16_t)(last % DESKTOP_GRID_COLS);
+        int16_t hr = (int16_t)(hit / DESKTOP_GRID_COLS);
+        int16_t hc = (int16_t)(hit % DESKTOP_GRID_COLS);
+
+        if (hc != lc)
+        {
+            int16_t bx = (int16_t)((hc > lc ? hc : lc) * DESKTOP_CELL_W);
+            if (hc > lc && cur->cursor_x < bx + (int16_t)DESKTOP_HYST) return last;
+            if (hc < lc && cur->cursor_x > bx - (int16_t)DESKTOP_HYST) return last;
+        }
+        if (hr != lr)
+        {
+            int16_t by = (int16_t)(DESKTOP_GRID_Y + (hr > lr ? hr : lr) * DESKTOP_CELL_H);
+            if (hr > lr && cur->cursor_y < by + (int16_t)DESKTOP_HYST) return last;
+            if (hr < lr && cur->cursor_y > by - (int16_t)DESKTOP_HYST) return last;
+        }
+    }
+
+    return hit;
+}
+
+static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t sel)
 {
     int16_t cx, cy;
 
@@ -90,7 +123,7 @@ static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive)
             uint8_t x = (uint8_t)(c * DESKTOP_CELL_W);
             uint8_t y = (uint8_t)(DESKTOP_GRID_Y + r * DESKTOP_CELL_H);
 
-            if (app == Desktop_HitTest(cur))
+            if (app == sel)
             {
                 OLED_FillRect((uint8_t)(x + 1U), (uint8_t)(y + 1U),
                               DESKTOP_CELL_W_IN, DESKTOP_CELL_H_IN, OLED_WHITE);
@@ -234,6 +267,16 @@ static void Oled_App_Run(AppId_t app)
     {
         Oled_App_Monitor();
     }
+    else if (app == APP_DRAW)
+    {
+        osThreadResume(App_DrawHandle);
+        osThreadSuspend(oledHandle);
+    }
+    else if (app == APP_FILE)
+    {
+        osThreadResume(App_FileHandle);
+        osThreadSuspend(oledHandle);
+    }
     else
     {
         Oled_App_Placeholder(app);
@@ -247,6 +290,10 @@ void Desktop_Sys_Run(void)
     uint8_t prev_button = 0U;
     uint8_t need_redraw = 1U;
     uint32_t last_cursor_tick = HAL_GetTick();
+    int16_t last_x = cur.cursor_x;
+    int16_t last_y = cur.cursor_y;
+    uint8_t last_button = cur.button_pressed;
+    AppId_t sel = APP_COUNT;
     char key;
 
     for (;;)
@@ -256,8 +303,12 @@ void Desktop_Sys_Run(void)
         while (osMessageQueueGet(cursorHandle, &cur, NULL, 0U) == osOK)
         {
             last_cursor_tick = HAL_GetTick();
+            if (cur.cursor_x != last_x || cur.cursor_y != last_y
+             || cur.button_pressed != last_button || !input_alive)
+            {
+                changed = 1U;
+            }
             input_alive = 1U;
-            changed = 1U;
         }
 
         if (input_alive && (HAL_GetTick() - last_cursor_tick) >= DESKTOP_IN_TIMEOUT)
@@ -266,51 +317,23 @@ void Desktop_Sys_Run(void)
             changed = 1U;
         }
 
+        sel = Desktop_SelectApp(&cur, sel);
+
         while (osMessageQueueGet(KeyHandle, &key, NULL, 0U) == osOK)
         {
-            switch (key)
+            if (key == '#')
             {
-                case '2':
-                    cur.cursor_y = (cur.cursor_y > (int16_t)DESKTOP_STEP)
-                                 ? (int16_t)(cur.cursor_y - DESKTOP_STEP) : 0;
-                    changed = 1U;
-                    break;
-                case '8':
-                    cur.cursor_y = (cur.cursor_y + (int16_t)DESKTOP_STEP > (int16_t)(OLED_HEIGHT - 1))
-                                 ? (int16_t)(OLED_HEIGHT - 1)
-                                 : (int16_t)(cur.cursor_y + DESKTOP_STEP);
-                    changed = 1U;
-                    break;
-                case '4':
-                    cur.cursor_x = (cur.cursor_x > (int16_t)DESKTOP_STEP)
-                                 ? (int16_t)(cur.cursor_x - DESKTOP_STEP) : 0;
-                    changed = 1U;
-                    break;
-                case '6':
-                    cur.cursor_x = (cur.cursor_x + (int16_t)DESKTOP_STEP > (int16_t)(OLED_WIDTH - 1))
-                                 ? (int16_t)(OLED_WIDTH - 1)
-                                 : (int16_t)(cur.cursor_x + DESKTOP_STEP);
-                    changed = 1U;
-                    break;
-                case '5':
-                case '#':
+                if (sel != APP_COUNT)
                 {
-                    AppId_t app = Desktop_HitTest(&cur);
-                    if (app != APP_COUNT)
-                    {
-                        Oled_App_Run(app);
-                        need_redraw = 1U;
-                    }
-                    break;
+                    Oled_App_Run(sel);
+                    need_redraw = 1U;
                 }
-                default:
-                    break;
             }
         }
 
         if (cur.button_pressed != 0U && prev_button == 0U)
         {
-            AppId_t app = Desktop_HitTest(&cur);
+            AppId_t app = sel;
             if (app != APP_COUNT)
             {
                 Oled_App_Run(app);      //进入对应app死循环
@@ -321,9 +344,13 @@ void Desktop_Sys_Run(void)
 
         if (changed || need_redraw)
         {
-            Desktop_Draw(&cur, input_alive);
+            Desktop_Draw(&cur, input_alive, sel);
             need_redraw = 0U;
         }
+
+        last_x = cur.cursor_x;
+        last_y = cur.cursor_y;
+        last_button = cur.button_pressed;
 
         osDelay(10U);
     }

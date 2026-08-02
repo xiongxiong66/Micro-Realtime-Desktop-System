@@ -16,7 +16,24 @@ void Sw_Adc_Task_Sys() {
   CursorMsg_t msg;
   static uint8_t prev_btn_state = 1;
   uint8_t button_pressed = 0;
+  uint16_t center_x, center_y;
+  uint32_t sum_x = 0U, sum_y = 0U;
+  uint8_t i;
   osDelay(100);
+
+  /* 上电时采样几次摇杆作为中心值，避免静止漂移 */
+  for (i = 0; i < 8U; i++)
+  {
+    uint16_t ax, ay;
+    if (BSP_ADC_ReadDual(&ax, &ay) == BSP_ADC_OK)
+    {
+      sum_x += ax;
+      sum_y += ay;
+    }
+    osDelay(10);
+  }
+  center_x = (uint16_t)(sum_x / 8U);
+  center_y = (uint16_t)(sum_y / 8U);
 
   for (;;)
   {
@@ -26,8 +43,8 @@ void Sw_Adc_Task_Sys() {
       continue;
     }
 
-    int16_t dx = (int16_t)adc_x - 2048;
-    int16_t dy = (int16_t)adc_y - 2048;
+    int16_t dx = (int16_t)adc_x - (int16_t)center_x;
+    int16_t dy = (int16_t)adc_y - (int16_t)center_y;
 
     if (dx > 180 && cursor_x > 0) 
     {

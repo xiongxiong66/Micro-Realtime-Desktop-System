@@ -81,11 +81,6 @@ static BSP_I2C_Status_t OLED_WriteCmdMulti(const uint8_t *c, uint16_t l) {
 static BSP_I2C_Status_t OLED_WriteData(const uint8_t *d, uint16_t l) {
     return BSP_I2C_Mem_Write(OLED_I2C_ADDR, OLED_CTRL_DATA, I2C_MEMADD_SIZE_8BIT, (uint8_t*)d, l);
 }
-static void OLED_SetWindow(uint8_t cs, uint8_t ps, uint8_t ce, uint8_t pe) {
-    uint8_t c[] = {OLED_CMD_COL_ADDR, cs & 0x7F, ce & 0x7F, OLED_CMD_PAGE_ADDR, ps & 7, pe & 7};
-    OLED_WriteCmdMulti(c, sizeof(c));
-}
-
 BSP_I2C_Status_t OLED_Init(void) {
     const uint8_t init[] = {
         OLED_CMD_DISPLAY_OFF, OLED_CMD_SET_CLK_DIV, 0x80, OLED_CMD_SET_MUX, 0x3F,
@@ -101,8 +96,18 @@ BSP_I2C_Status_t OLED_Init(void) {
     return r;
 }
 void OLED_Display(void) {
-    OLED_SetWindow(0, 0, OLED_WIDTH - 1, OLED_PAGES - 1);
-    OLED_WriteData(frame_buffer, OLED_BUFFER_SIZE);
+    /* Refresh page by page with explicit addressing so a bad burst cannot
+       shift or wrap the columns of the remaining pages. */
+    for (uint8_t page = 0; page < OLED_PAGES; page++)
+    {
+        uint8_t addr[] = {
+            (uint8_t)(0xB0U | page),   /* set page address */
+            0x00U,                     /* set lower column start = 0 */
+            0x10U                      /* set higher column start = 0 */
+        };
+        OLED_WriteCmdMulti(addr, sizeof(addr));
+        OLED_WriteData(&frame_buffer[(uint16_t)page * OLED_WIDTH], OLED_WIDTH);
+    }
 }
 void OLED_Clear(void) { memset(frame_buffer, 0, OLED_BUFFER_SIZE); cursor_x = 0; cursor_y = 0; }
 void OLED_Fill(void) { memset(frame_buffer, 0xFF, OLED_BUFFER_SIZE); }
@@ -139,6 +144,9 @@ void OLED_PrintStringColor(uint8_t x, uint8_t y, const char *str, uint8_t color)
         cursor_x += 6;
         str++;
     }
+}
+void OLED_Blit(const uint8_t *data) {
+    if (data) memcpy(frame_buffer, data, OLED_BUFFER_SIZE);
 }
 void OLED_SetCursor(uint8_t x, uint8_t y) {
     cursor_x = (x < OLED_WIDTH) ? x : (OLED_WIDTH - 1);
