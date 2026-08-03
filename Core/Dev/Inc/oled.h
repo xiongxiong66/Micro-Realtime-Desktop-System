@@ -32,6 +32,7 @@ void OLED_PrintSignedNum(int32_t num, uint8_t base);
 void OLED_On(void);
 void OLED_Off(void);
 void OLED_Invert(uint8_t enable);
+void OLED_SetContrast(uint8_t level);
 
 #ifdef __cplusplus
 }

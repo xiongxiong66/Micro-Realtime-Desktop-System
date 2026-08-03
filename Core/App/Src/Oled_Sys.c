@@ -1,12 +1,11 @@
 #include "Oled_Sys.h"
 #include "Desktop_Sys.h"
+#include "Set_Sys.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "main.h"
 #include <string.h>
 
-#define PIN_MAX_LEN    10U
-#define PIN_PASSWORD   "12345"
 #define PIN_MAX_WRONG  3U
 #define PIN_LOCK_SEC   10U
 
@@ -35,7 +34,7 @@ static void Oled_Lock_Sys(void)
 
 static void Oled_Login_Sys(void)
 {
-    char pin_buf[PIN_MAX_LEN + 1U] = {0};
+    char pin_buf[SETTINGS_PIN_MAX_LEN + 1U] = {0};
     uint8_t pin_len = 0;
     uint8_t wrong_count = 0;
     char key;
@@ -65,7 +64,7 @@ static void Oled_Login_Sys(void)
         }
         else if (key == '#')
         {
-            if (strcmp(pin_buf, PIN_PASSWORD) == 0)
+            if (Set_Sys_CheckPin(pin_buf))
             {
                 state = Statue_Yes;
                 return;
@@ -89,7 +88,7 @@ static void Oled_Login_Sys(void)
             }
         }
         //在达到最大输出长度之前，按键输入到pin_buf中
-        else if (pin_len < PIN_MAX_LEN)
+        else if (pin_len < SETTINGS_PIN_MAX_LEN)
         {
             pin_buf[pin_len++] = key;
             pin_buf[pin_len] = '\0';

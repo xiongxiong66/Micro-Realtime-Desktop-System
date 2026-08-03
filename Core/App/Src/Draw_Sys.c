@@ -8,6 +8,8 @@
 #include "Draw_Sys.h"
 #include "Oled_Sys.h"
 #include "ImgFile.h"
+#include "Music_Sys.h"
+#include "Set_Sys.h"
 #include "NameEdit_Sys.h"
 #include "Confirm_Sys.h"
 #include "cmsis_os.h"
@@ -149,17 +151,21 @@ static void draw_toggle_pixel(int16_t x, int16_t y)
 static void draw_edit_render(int16_t cx, int16_t cy)
 {
     int16_t x = cx, y = cy;
+    uint8_t cs = (uint8_t)(Set_Sys_GetCursorSize() + 1U);
 
     if (x < 0) x = 0;
-    if (x > (int16_t)(OLED_WIDTH - 2)) x = (int16_t)(OLED_WIDTH - 2);
+    if (x > (int16_t)(OLED_WIDTH - cs)) x = (int16_t)(OLED_WIDTH - cs);
     if (y < 0) y = 0;
-    if (y > (int16_t)(OLED_HEIGHT - 2)) y = (int16_t)(OLED_HEIGHT - 2);
+    if (y > (int16_t)(OLED_HEIGHT - cs)) y = (int16_t)(OLED_HEIGHT - cs);
 
     OLED_Blit(draw_file.data);
-    OLED_DrawPixel((uint8_t)x, (uint8_t)y, OLED_WHITE);
-    OLED_DrawPixel((uint8_t)(x + 1), (uint8_t)y, OLED_WHITE);
-    OLED_DrawPixel((uint8_t)x, (uint8_t)(y + 1), OLED_WHITE);
-    OLED_DrawPixel((uint8_t)(x + 1), (uint8_t)(y + 1), OLED_WHITE);
+    for (uint8_t yy = 0U; yy < cs; yy++)
+    {
+        for (uint8_t xx = 0U; xx < cs; xx++)
+        {
+            OLED_DrawPixel((uint8_t)(x + xx), (uint8_t)(y + yy), OLED_WHITE);
+        }
+    }
     OLED_Display();
 }
 
@@ -255,6 +261,9 @@ static void draw_edit(uint8_t idx, uint8_t is_new)
                         draw_save(idx);
                         return;
                     }
+                    break;
+                case '1':
+                    Music_Bg_Toggle();
                     break;
                 case '*':
                     return;
@@ -384,6 +393,9 @@ static void draw_selection(void)
                         SFlash_EraseSector(DRAW_SECTOR_BASE + idx);
                     }
                 }
+                break;
+            case '1':
+                Music_Bg_Toggle();
                 break;
             case '*':
                 return;

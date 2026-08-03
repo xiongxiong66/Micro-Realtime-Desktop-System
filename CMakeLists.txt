@@ -49,6 +49,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Bsp/Src/adc.c
     Core/Bsp/Src/keypad.c
     Core/Bsp/Src/w25q64.c
+    Core/Bsp/Src/buzzer.c
     Core/Dev/Src/oled.c
     Core/Dev/Src/mkey.c
     Core/Dev/Src/sflash.c
@@ -59,6 +60,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/App/Src/Confirm_Sys.c
     Core/App/Src/Draw_Sys.c
     Core/App/Src/File_Sys.c
+    Core/App/Src/Music_Sys.c
+    Core/App/Src/Monitor_Sys.c
+    Core/App/Src/Set_Sys.c
+    Core/App/Src/Screen_Sys.c
     Core/App/Src/Desktop_Sys.c
 )
 

@@ -11,12 +11,12 @@
 #include "MKey_Sys.h"
 #include "Draw_Sys.h"
 #include "File_Sys.h"
+#include "Music_Sys.h"
+#include "Monitor_Sys.h"
+#include "Set_Sys.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "main.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
 
 #define DESKTOP_GRID_COLS   3U
 #define DESKTOP_GRID_ROWS   2U
@@ -28,7 +28,6 @@
 
 #define DESKTOP_HYST        4U
 #define DESKTOP_IN_TIMEOUT  1000U
-#define DESKTOP_STACK_WORDS 512U
 
 typedef enum {
     APP_FILE = 0,
@@ -44,7 +43,6 @@ static const char app_names[APP_COUNT][5] = {
     "FILE", "DRAW", "MUSI", "LOG", "MON", "SET"
 };
 
-static uint32_t desktop_err_count = 0U;
 //@brief:在指定图标格子居中打印应用名称
 static void Desktop_PrintLabel(uint8_t x, uint8_t y, AppId_t app, uint8_t color)
 {
@@ -111,9 +109,8 @@ static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t se
 
     OLED_SetCursor(0, 0);
     OLED_PrintString(input_alive ? "In:ON" : "In:NO");
-    OLED_SetCursor(98, 0);
-    OLED_PrintString("E:");
-    OLED_PrintNum(desktop_err_count, 10);
+    OLED_FillRect(98, 0, 28, 8, OLED_WHITE);
+    OLED_PrintStringColor(100, 0, Music_Bg_IsPlaying() ? "1:||" : "1:>", OLED_BLACK);
 
     for (uint8_t r = 0; r < DESKTOP_GRID_ROWS; r++)
     {
@@ -142,14 +139,18 @@ static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t se
 
     cx = cur->cursor_x;
     cy = cur->cursor_y;
+    uint8_t cs = (uint8_t)(Set_Sys_GetCursorSize() + 1U);
     if (cx < 0) cx = 0;
-    if (cx > (int16_t)(OLED_WIDTH - 2)) cx = (int16_t)(OLED_WIDTH - 2);
+    if (cx > (int16_t)(OLED_WIDTH - cs)) cx = (int16_t)(OLED_WIDTH - cs);
     if (cy < 0) cy = 0;
-    if (cy > (int16_t)(OLED_HEIGHT - 2)) cy = (int16_t)(OLED_HEIGHT - 2);
-    OLED_DrawPixel((uint8_t)cx, (uint8_t)cy, OLED_WHITE);
-    OLED_DrawPixel((uint8_t)(cx + 1), (uint8_t)cy, OLED_WHITE);
-    OLED_DrawPixel((uint8_t)cx, (uint8_t)(cy + 1), OLED_WHITE);
-    OLED_DrawPixel((uint8_t)(cx + 1), (uint8_t)(cy + 1), OLED_WHITE);
+    if (cy > (int16_t)(OLED_HEIGHT - cs)) cy = (int16_t)(OLED_HEIGHT - cs);
+    for (uint8_t yy = 0U; yy < cs; yy++)
+    {
+        for (uint8_t xx = 0U; xx < cs; xx++)
+        {
+            OLED_DrawPixel((uint8_t)(cx + xx), (uint8_t)(cy + yy), OLED_WHITE);
+        }
+    }
 
     OLED_SetCursor(0, 56);
     OLED_PrintString("X:");
@@ -158,87 +159,6 @@ static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t se
     OLED_PrintNum((uint32_t)cur->cursor_y, 10);
 
     OLED_Display();
-}
-
-static void Oled_App_Monitor_Draw(void)
-{
-    uint32_t sec = HAL_GetTick() / 1000U;
-    uint32_t hh = sec / 3600U;
-    uint32_t mm = (sec / 60U) % 60U;
-    uint32_t ss = sec % 60U;
-    uint32_t free_heap = xPortGetFreeHeapSize();
-    UBaseType_t stack_water = uxTaskGetStackHighWaterMark(NULL);
-    uint32_t stack_used = 100U;
-
-    if (stack_water <= DESKTOP_STACK_WORDS)
-    {
-        stack_used = 100U - (uint32_t)stack_water * 100U / DESKTOP_STACK_WORDS;
-    }
-
-    OLED_Clear();
-
-    OLED_SetCursor(0, 0);
-    OLED_PrintString("UP ");
-    OLED_PrintNum(hh, 10);
-    OLED_PrintChar(':');
-    if (mm < 10U) OLED_PrintChar('0');
-    OLED_PrintNum(mm, 10);
-    OLED_PrintChar(':');
-    if (ss < 10U) OLED_PrintChar('0');
-    OLED_PrintNum(ss, 10);
-
-    OLED_SetCursor(0, 8);
-    OLED_PrintString("HEAP ");
-    OLED_PrintNum(free_heap, 10);
-
-    OLED_SetCursor(0, 16);
-    OLED_PrintString("EV ");
-    OLED_PrintNum(adc_events + mkey_events, 10);
-    OLED_PrintString(" DRP ");
-    OLED_PrintNum(adc_dropped + mkey_dropped, 10);
-
-    OLED_SetCursor(0, 24);
-    OLED_PrintString("Q K");
-    OLED_PrintNum(uxQueueMessagesWaiting(KeyHandle), 10);
-    OLED_PrintString(" C");
-    OLED_PrintNum(uxQueueMessagesWaiting(cursorHandle), 10);
-
-    OLED_SetCursor(0, 32);
-    OLED_PrintString("ERR ");
-    OLED_PrintNum(desktop_err_count, 10);
-
-    OLED_SetCursor(0, 40);
-    OLED_PrintString("STK ");
-    OLED_PrintNum(stack_used, 10);
-    OLED_PrintChar('%');
-
-    OLED_SetCursor(0, 56);
-    OLED_PrintString("*:back");
-
-    OLED_Display();
-}
-
-static void Oled_App_Monitor(void)
-{
-    char key;
-    uint32_t last_refresh = 0U;
-
-    for (;;)
-    {
-        uint32_t now = HAL_GetTick();
-
-        if ((now - last_refresh) >= 1000U)
-        {
-            last_refresh = now;
-            Oled_App_Monitor_Draw();
-        }
-
-        if (osMessageQueueGet(KeyHandle, &key, NULL, 0U) == osOK)
-        {
-            if (key == '*') return;
-        }
-        osDelay(10U);
-    }
 }
 
 static void Oled_App_Placeholder(AppId_t app)
@@ -257,6 +177,7 @@ static void Oled_App_Placeholder(AppId_t app)
         if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) == osOK)
         {
             if (key == '*') return;
+            else if (key == '1') Music_Bg_Toggle();
         }
     }
 }
@@ -265,7 +186,9 @@ static void Oled_App_Run(AppId_t app)
 {
     if (app == APP_MONITOR)
     {
-        Oled_App_Monitor();
+        Cursor_Suspend();
+        Monitor_Sys_Run();
+        Cursor_Resume();
     }
     else if (app == APP_DRAW)
     {
@@ -274,12 +197,29 @@ static void Oled_App_Run(AppId_t app)
     }
     else if (app == APP_FILE)
     {
+        Cursor_Suspend();
         osThreadResume(App_FileHandle);
         osThreadSuspend(oledHandle);
+        Cursor_Resume();
+    }
+    else if (app == APP_MUSIC)
+    {
+        Cursor_Suspend();
+        osThreadResume(App_MusicHandle);
+        osThreadSuspend(oledHandle);
+        Cursor_Resume();
+    }
+    else if (app == APP_SETTINGS)
+    {
+        Cursor_Suspend();
+        Set_Sys_Run();
+        Cursor_Resume();
     }
     else
     {
+        Cursor_Suspend();
         Oled_App_Placeholder(app);
+        Cursor_Resume();
     }
 }
 
@@ -328,6 +268,11 @@ void Desktop_Sys_Run(void)
                     Oled_App_Run(sel);
                     need_redraw = 1U;
                 }
+            }
+            else if (key == '1')
+            {
+                Music_Bg_Toggle();
+                need_redraw = 1U;
             }
         }
 

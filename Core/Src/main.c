@@ -30,6 +30,9 @@
 #include "MKey_Sys.h"
 #include "Draw_Sys.h"
 #include "File_Sys.h"
+#include "Music_Sys.h"
+#include "Set_Sys.h"
+#include "Screen_Sys.h"
 
 /* USER CODE END Includes */
 
@@ -98,6 +101,20 @@ const osThreadAttr_t App_File_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
+/* Definitions for App_Music */
+osThreadId_t App_MusicHandle;
+const osThreadAttr_t App_Music_attributes = {
+  .name = "App_Music",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for MusicPlay */
+osThreadId_t MusicPlayHandle;
+const osThreadAttr_t MusicPlay_attributes = {
+  .name = "MusicPlay",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* Definitions for cursor */
 osMessageQueueId_t cursorHandle;
 const osMessageQueueAttr_t cursor_attributes = {
@@ -124,6 +141,8 @@ void Sw_Adc_Task(void *argument);
 void MKey_Task(void *argument);
 void App_Draw_Task(void *argument);
 void App_File_Task(void *argument);
+void App_Music_Task(void *argument);
+void MusicPlay_Task(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -148,7 +167,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-1  HAL_Init();
+  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -167,7 +186,10 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
+  Set_Sys_Load();
   OLED_Init();
+  Set_Sys_ApplyBrightness();
+  Screen_Sys_Init();
 
   /* USER CODE END 2 */
 
@@ -215,6 +237,12 @@ int main(void)
 
   /* creation of App_File */
   App_FileHandle = osThreadNew(App_File_Task, NULL, &App_File_attributes);
+
+  /* creation of App_Music */
+  App_MusicHandle = osThreadNew(App_Music_Task, NULL, &App_Music_attributes);
+
+  /* creation of MusicPlay */
+  MusicPlayHandle = osThreadNew(MusicPlay_Task, NULL, &MusicPlay_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -432,11 +460,8 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, SPI1_NSS_Pin|MKey_x4_Pin|MKey_x3_Pin|MKey_x2_Pin
-                          |MKey_x1_Pin, GPIO_PIN_SET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, SPI1_NSS_Pin|Beep_Pin|MKey_x4_Pin|MKey_x3_Pin
+                          |MKey_x2_Pin|MKey_x1_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : SW_Pin MKey_y4_Pin MKey_y3_Pin MKey_y2_Pin
                            MKey_y1_Pin */
@@ -453,9 +478,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SPI1_NSS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB1 MKey_x4_Pin MKey_x3_Pin MKey_x2_Pin
+  /*Configure GPIO pins : Beep_Pin MKey_x4_Pin MKey_x3_Pin MKey_x2_Pin
                            MKey_x1_Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_1|MKey_x4_Pin|MKey_x3_Pin|MKey_x2_Pin
+  GPIO_InitStruct.Pin = Beep_Pin|MKey_x4_Pin|MKey_x3_Pin|MKey_x2_Pin
                           |MKey_x1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -557,6 +582,34 @@ void App_File_Task(void *argument)
   /* USER CODE BEGIN App_File_Task */
   App_File_Task_Sys();
   /* USER CODE END App_File_Task */
+}
+
+/* USER CODE BEGIN Header_App_Music_Task */
+/**
+* @brief Function implementing the App_Music thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_App_Music_Task */
+void App_Music_Task(void *argument)
+{
+  /* USER CODE BEGIN App_Music_Task */
+  App_Music_Task_Sys();
+  /* USER CODE END App_Music_Task */
+}
+
+/* USER CODE BEGIN Header_MusicPlay_Task */
+/**
+* @brief Function implementing the MusicPlay thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_MusicPlay_Task */
+void MusicPlay_Task(void *argument)
+{
+  /* USER CODE BEGIN MusicPlay_Task */
+  Music_Play_Task_Sys();
+  /* USER CODE END MusicPlay_Task */
 }
 
 /**

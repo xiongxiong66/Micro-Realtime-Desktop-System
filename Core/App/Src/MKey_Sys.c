@@ -8,6 +8,7 @@
 #include "MKey_Sys.h"
 #include "mkey.h"
 #include "keypad.h"
+#include "Screen_Sys.h"
 
 volatile uint32_t mkey_events = 0U;
 volatile uint32_t mkey_dropped = 0U;
@@ -20,8 +21,11 @@ void MKey_Task_Sys(void)
 
     for (;;)
     {
+        Screen_Sys_Update();
+
         if (MKey_GetKeyEvent(&key) == MKEY_OK)
         {
+            Screen_Sys_Wake();
             if (osMessageQueuePut(KeyHandle, &key, 0U, 0U) == osOK) mkey_events++;
             else mkey_dropped++;
         }

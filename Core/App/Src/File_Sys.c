@@ -8,6 +8,8 @@
 #include "File_Sys.h"
 #include "Oled_Sys.h"
 #include "ImgFile.h"
+#include "MusicFile.h"
+#include "Music_Sys.h"
 #include "NameEdit_Sys.h"
 #include "Confirm_Sys.h"
 #include "cmsis_os.h"
@@ -17,26 +19,10 @@
 
 #define FILE_PAGE_ROWS     6U
 
-/* Music region, see README W25Q64 partition table */
-#define FILE_MUSIC_BASE    544U
-#define FILE_MUSIC_COUNT   256U
-
-#define FILE_MUSIC_MAGIC0  'M'
-#define FILE_MUSIC_MAGIC1  'U'
-#define FILE_MUSIC_MAGIC2  'S'
-#define FILE_MUSIC_MAGIC3  '1'
-
-typedef struct {
-    uint8_t magic[4];
-    char name[12];
-    uint16_t size;
-} MusicFile_t;
-
 static DrawFile_t file_draw;
-static MusicFile_t file_music;
 static uint8_t file_pic_idx[DRAW_SECTOR_COUNT];
 static uint16_t file_pic_count;
-static uint8_t file_mus_idx[FILE_MUSIC_COUNT];
+static uint8_t file_mus_idx[MUSIC_SECTOR_COUNT];
 static uint16_t file_mus_count;
 
 static void file_load_pic_name(uint8_t idx, char *name)
@@ -62,12 +48,13 @@ static void file_load_pic_name(uint8_t idx, char *name)
 
 static void file_load_music_name(uint8_t idx, char *name)
 {
-    uint8_t hdr[18];
+    uint8_t hdr[MUSIC_HEADER_BYTES];
     uint8_t i;
 
-    if (SFlash_Read((uint32_t)(FILE_MUSIC_BASE + idx) * SFLASH_SECTOR_SIZE, hdr, 18U) != SFLASH_OK
-     || hdr[0] != FILE_MUSIC_MAGIC0 || hdr[1] != FILE_MUSIC_MAGIC1
-     || hdr[2] != FILE_MUSIC_MAGIC2 || hdr[3] != FILE_MUSIC_MAGIC3)
+    if (SFlash_Read((uint32_t)(MUSIC_SECTOR_BASE + idx) * SFLASH_SECTOR_SIZE,
+                    hdr, MUSIC_HEADER_BYTES) != SFLASH_OK
+     || hdr[0] != MUSIC_MAGIC0 || hdr[1] != MUSIC_MAGIC1
+     || hdr[2] != MUSIC_MAGIC2 || hdr[3] != MUSIC_MAGIC3)
     {
         name[0] = '\0';
         return;
@@ -99,14 +86,15 @@ static void file_scan_pictures(void)
 
 static void file_scan_music(void)
 {
-    uint8_t hdr[18];
+    uint8_t hdr[MUSIC_HEADER_BYTES];
 
     file_mus_count = 0U;
-    for (uint16_t i = 0; i < FILE_MUSIC_COUNT; i++)
+    for (uint16_t i = 0; i < MUSIC_SECTOR_COUNT; i++)
     {
-        if (SFlash_Read((uint32_t)(FILE_MUSIC_BASE + i) * SFLASH_SECTOR_SIZE, hdr, 18U) == SFLASH_OK
-         && hdr[0] == FILE_MUSIC_MAGIC0 && hdr[1] == FILE_MUSIC_MAGIC1
-         && hdr[2] == FILE_MUSIC_MAGIC2 && hdr[3] == FILE_MUSIC_MAGIC3)
+        if (SFlash_Read((uint32_t)(MUSIC_SECTOR_BASE + i) * SFLASH_SECTOR_SIZE,
+                        hdr, MUSIC_HEADER_BYTES) == SFLASH_OK
+         && hdr[0] == MUSIC_MAGIC0 && hdr[1] == MUSIC_MAGIC1
+         && hdr[2] == MUSIC_MAGIC2 && hdr[3] == MUSIC_MAGIC3)
         {
             file_mus_idx[file_mus_count++] = (uint8_t)i;
         }
@@ -197,7 +185,7 @@ static void file_music_render(uint8_t page, uint8_t sel)
     }
 
     OLED_SetCursor(0, 48);
-    OLED_PrintString("#:PLAY *:BACK");
+    OLED_PrintString("#:PLAY 0:REN D:DEL");
     OLED_SetCursor(0, 56);
     OLED_PrintString("< ");
     OLED_PrintNum((uint32_t)page + 1U, 10);
@@ -219,6 +207,7 @@ static void file_view_picture(void)
         if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) == osOK)
         {
             if (key == '*') return;
+            else if (key == '1') Music_Bg_Toggle();
         }
     }
 }
@@ -326,6 +315,9 @@ static void file_picture_menu(void)
                     }
                 }
                 break;
+            case '1':
+                Music_Bg_Toggle();
+                break;
             case '*':
                 return;
             default:
@@ -390,13 +382,25 @@ static void file_music_menu(void)
             case '#':
                 if (sel < used_on_page)
                 {
-                    (void)file_music;   /* player not implemented yet */
-                    OLED_Clear();
-                    OLED_SetCursor(20, 28);
-                    OLED_PrintString("No Player");
-                    OLED_Display();
-                    osDelay(500U);
+                    Music_Play(file_mus_idx[n + sel]);
                 }
+                break;
+            case '0':
+                if (sel < used_on_page)
+                {
+                    Music_Rename(file_mus_idx[n + sel]);
+                    file_scan_music();
+                }
+                break;
+            case 'D':
+                if (sel < used_on_page)
+                {
+                    Music_Delete(file_mus_idx[n + sel]);
+                    file_scan_music();
+                }
+                break;
+            case '1':
+                Music_Bg_Toggle();
                 break;
             case '*':
                 return;
@@ -443,6 +447,9 @@ static void file_main_menu(void)
             case '#':
                 if (sel == 0U) file_music_menu();
                 else file_picture_menu();
+                break;
+            case '1':
+                Music_Bg_Toggle();
                 break;
             case '*':
                 return;

@@ -61,6 +61,8 @@ void Error_Handler(void);
 #define SW_GPIO_Port GPIOA
 #define SPI1_NSS_Pin GPIO_PIN_0
 #define SPI1_NSS_GPIO_Port GPIOB
+#define Beep_Pin GPIO_PIN_1
+#define Beep_GPIO_Port GPIOB
 #define MKey_x4_Pin GPIO_PIN_12
 #define MKey_x4_GPIO_Port GPIOB
 #define MKey_x3_Pin GPIO_PIN_13

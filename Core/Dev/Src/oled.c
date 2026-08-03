@@ -190,3 +190,7 @@ void OLED_PrintSignedNum(int32_t num, uint8_t base) {
 void OLED_On(void) { OLED_WriteCmd(OLED_CMD_DISPLAY_ON); }
 void OLED_Off(void) { OLED_WriteCmd(OLED_CMD_DISPLAY_OFF); }
 void OLED_Invert(uint8_t e) { OLED_WriteCmd(e ? OLED_CMD_SET_INVERT_DISP : OLED_CMD_SET_NORM_DISP); }
+void OLED_SetContrast(uint8_t level) {
+    OLED_WriteCmd(OLED_CMD_SET_CONTRAST);
+    OLED_WriteCmd(level);
+}
