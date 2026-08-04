@@ -71,6 +71,7 @@ static uint8_t Monitor_GetTaskData(UBaseType_t *task_count)
 
 static void Monitor_DrawHeader(uint8_t page, uint8_t pages)
 {
+    OLED_Clear();
     OLED_SetCursor(0, 0);
     OLED_PrintString("MON ");
     OLED_PrintNum((uint32_t)page + 1U, 10);
