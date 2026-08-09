@@ -19,7 +19,10 @@ void Music_Play(uint8_t idx);
 void Music_Rename(uint8_t idx);
 void Music_Delete(uint8_t idx);
 void Music_Bg_Start(uint8_t idx);
+void Music_Bg_Prepare(uint8_t idx);
 void Music_Bg_Toggle(void);
 uint8_t Music_Bg_IsPlaying(void);
+uint32_t Music_Bg_GetElapsedMs(void);
+uint32_t Music_Bg_GetTotalMs(void);
 
 #endif /* __MUSIC_SYS_H */

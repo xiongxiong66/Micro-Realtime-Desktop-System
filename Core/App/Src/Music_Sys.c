@@ -35,6 +35,8 @@ static volatile uint8_t music_bg_restart;
 static volatile uint8_t music_bg_idx;
 static uint16_t music_bg_count;
 static uint16_t music_bg_cur;
+static uint32_t music_bg_total_ms;
+static uint32_t music_bg_elapsed_ms;
 
 static void music_scan(void)
 {
@@ -169,6 +171,19 @@ void Music_Bg_Start(uint8_t idx)
     }
 }
 
+void Music_Bg_Prepare(uint8_t idx)
+{
+    music_bg_idx = idx;
+    music_bg_active = 1U;
+    music_bg_paused = 1U;
+    music_bg_restart = 1U;
+
+    if (MusicPlayHandle != NULL)
+    {
+        osThreadFlagsSet(MusicPlayHandle, MUSIC_BG_FLAG_UPDATE);
+    }
+}
+
 void Music_Bg_Toggle(void)
 {
     if (music_bg_active == 0U) return;
@@ -187,20 +202,65 @@ uint8_t Music_Bg_IsPlaying(void)
     return (music_bg_active != 0U && music_bg_paused == 0U) ? 1U : 0U;
 }
 
+uint32_t Music_Bg_GetElapsedMs(void)
+{
+    return music_bg_elapsed_ms;
+}
+
+uint32_t Music_Bg_GetTotalMs(void)
+{
+    return music_bg_total_ms;
+}
+
+static void Music_Play_Render(const char *name)
+{
+    OLED_Clear();
+    OLED_SetCursor(0, 0);
+    OLED_PrintString(name);
+    OLED_SetCursor(0, 16);
+    OLED_PrintString(Music_Bg_IsPlaying() ? "|| Playing" : "|> Paused");
+    OLED_SetCursor(0, 32);
+    OLED_PrintNum(Music_Bg_GetElapsedMs() / 1000U, 10);
+    OLED_PrintString("s / ");
+    OLED_PrintNum(Music_Bg_GetTotalMs() / 1000U, 10);
+    OLED_PrintString("s");
+    OLED_SetCursor(0, 56);
+    OLED_PrintString(Music_Bg_IsPlaying() ? "1:PAUSE *:BACK" : "1:PLAY *:BACK");
+    OLED_Display();
+}
+
 void Music_Play(uint8_t idx)
 {
     char name[16];
+    char key;
+    uint32_t last_render = 0U;
 
-    Music_Bg_Start(idx);
+    Music_Bg_Prepare(idx);
     music_load_name(idx, name);
 
-    OLED_Clear();
-    OLED_SetCursor(16, 20);
-    OLED_PrintString("Playing");
-    OLED_SetCursor(16, 32);
-    OLED_PrintString(name);
-    OLED_Display();
-    osDelay(300U);
+    for (;;)
+    {
+        uint32_t now = HAL_GetTick();
+
+        if ((now - last_render) >= 500U)
+        {
+            last_render = now;
+            Music_Play_Render(name);
+        }
+
+        if (osMessageQueueGet(KeyHandle, &key, NULL, 100U) == osOK)
+        {
+            if (key == '1')
+            {
+                Music_Bg_Toggle();
+                Music_Play_Render(name);
+            }
+            else if (key == '*')
+            {
+                return;
+            }
+        }
+    }
 }
 
 void Music_Play_Task_Sys(void)
@@ -219,7 +279,22 @@ void Music_Play_Task_Sys(void)
             {
                 music_bg_restart = 0U;
                 music_bg_cur = 0U;
+                music_bg_elapsed_ms = 0U;
+                music_bg_total_ms = 0U;
                 music_bg_count = music_load_count(music_bg_idx);
+
+                for (uint16_t i = 0U; i < music_bg_count; i++)
+                {
+                    MusicEvent_t tev;
+                    if (music_load_event(music_bg_idx, i, &tev))
+                    {
+                        uint16_t tdur = tev.duration_ms;
+                        if (tdur == 0U) tdur = 10U;
+                        tdur = (uint16_t)(((uint32_t)tdur * MUSIC_TEMPO_NUM) / MUSIC_TEMPO_DEN);
+                        music_bg_total_ms += tdur;
+                        if (i + 1U < music_bg_count) music_bg_total_ms += MUSIC_NOTE_GAP_MS;
+                    }
+                }
             }
 
             if (music_bg_count == 0U)
@@ -241,6 +316,7 @@ void Music_Play_Task_Sys(void)
                 if (dur == 0U) dur = 10U;
                 dur = (uint16_t)(((uint32_t)dur * MUSIC_TEMPO_NUM) / MUSIC_TEMPO_DEN);
                 if (dur == 0U) dur = 10U;
+                music_bg_elapsed_ms += dur;
             }
             else
             {
@@ -258,9 +334,18 @@ void Music_Play_Task_Sys(void)
             if (music_bg_active != 0U && music_bg_paused == 0U)
             {
                 Buzzer_Stop();
-                osDelay(MUSIC_NOTE_GAP_MS);
                 music_bg_cur++;
-                if (music_bg_cur >= music_bg_count) music_bg_cur = 0U;
+                if (music_bg_cur >= music_bg_count)
+                {
+                    music_bg_cur = 0U;
+                    music_bg_elapsed_ms = 0U;
+                    music_bg_paused = 1U;
+                }
+                else
+                {
+                    osDelay(MUSIC_NOTE_GAP_MS);
+                    music_bg_elapsed_ms += MUSIC_NOTE_GAP_MS;
+                }
             }
         }
         else

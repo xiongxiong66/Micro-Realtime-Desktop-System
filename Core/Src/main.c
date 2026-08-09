@@ -127,10 +127,10 @@ osMessageQueueId_t KeyHandle;
 const osMessageQueueAttr_t Key_attributes = {
   .name = "Key"
 };
-/* Definitions for Log queue */
+/* Definitions for LogQueue */
 osMessageQueueId_t LogQueueHandle;
 const osMessageQueueAttr_t LogQueue_attributes = {
-  .name = "Log"
+  .name = "LogQueue"
 };
 /* USER CODE BEGIN PV */
 
@@ -220,12 +220,12 @@ int main(void)
 
   /* Create the queue(s) */
   /* creation of cursor */
-  cursorHandle = osMessageQueueNew (1, 6, &cursor_attributes);
+  cursorHandle = osMessageQueueNew (4, 6, &cursor_attributes);
 
   /* creation of Key */
   KeyHandle = osMessageQueueNew (1, sizeof(uint8_t), &Key_attributes);
 
-  /* creation of Log queue */
+  /* creation of LogQueue */
   LogQueueHandle = osMessageQueueNew (8, 18, &LogQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */

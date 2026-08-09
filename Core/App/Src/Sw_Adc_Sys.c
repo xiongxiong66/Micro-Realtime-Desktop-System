@@ -13,6 +13,9 @@ static uint8_t cursor_suspended = 0U;
 static uint8_t prev_state = Statue_NO;
 static volatile int16_t cursor_x = 64;
 static volatile int16_t cursor_y = 32;
+static int16_t last_sent_x = 64;
+static int16_t last_sent_y = 32;
+static uint8_t last_sent_button = 0U;
 
 void Cursor_KeyMove(int16_t dx, int16_t dy)
 {
@@ -167,8 +170,21 @@ void Sw_Adc_Task_Sys() {
     msg.cursor_x       = cursor_x;
     msg.cursor_y       = cursor_y;
     msg.button_pressed = button_pressed;
-    if (osMessageQueuePut(cursorHandle, &msg, 0, 0) == osOK) adc_events++;
-    else adc_dropped++;
-    osDelay(20);
+
+    if (cursor_x != last_sent_x || cursor_y != last_sent_y || button_pressed != last_sent_button)
+    {
+        if (osMessageQueuePut(cursorHandle, &msg, 0, 0) == osOK)
+        {
+            last_sent_x = cursor_x;
+            last_sent_y = cursor_y;
+            last_sent_button = button_pressed;
+            adc_events++;
+        }
+        else
+        {
+            adc_dropped++;
+        }
+    }
+    osDelay(30);
   }
 }

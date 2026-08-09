@@ -138,9 +138,9 @@ void OLED_PrintStringColor(uint8_t x, uint8_t y, const char *str, uint8_t color)
         for (uint8_t col = 0; col < 5; col++) {
             uint8_t line = font_5x7[idx][col];
             for (uint8_t row = 0; row < 8; row++)
-                OLED_DrawPixel(cursor_x + col, cursor_y + row, (line & (1 << row)) ? color : OLED_BLACK);
+                if (line & (1 << row))
+                    OLED_DrawPixel(cursor_x + col, cursor_y + row, color);
         }
-        for (uint8_t row = 0; row < 8; row++) OLED_DrawPixel(cursor_x + 5, cursor_y + row, OLED_BLACK);
         cursor_x += 6;
         str++;
     }

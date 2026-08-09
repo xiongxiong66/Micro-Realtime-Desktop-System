@@ -27,8 +27,8 @@
 #define DESKTOP_CELL_W_IN   40U
 #define DESKTOP_CELL_H_IN   22U
 
-#define DESKTOP_HYST        4U      //应用之间切换边界，在光标移动到相邻应用的边界时，必须超过4个像素才会切换应用，否则保持原应用选中状态
 #define DESKTOP_IN_TIMEOUT  1000U
+#define DESKTOP_CORNER_SIZE 4U
 
 typedef enum {
     APP_FILE = 0,
@@ -71,37 +71,11 @@ static AppId_t Desktop_HitTest(const CursorMsg_t *cur)
     return (AppId_t)(row * DESKTOP_GRID_COLS + col);                //row为0——1，col为0——2，返回值为0——5，正好对应应用ID
 }
 
-//@brief:防止光标停在格子边界附近时选中框来回抖动，只有当光标移动到相邻应用的边界时，必须超过4个像素才会切换应用，否则保持原应用选中状态
-//cur为当前光标位置，last为上一次选中的应用ID，返回值为当前选中的应用ID，如果没有命中则返回APP_COUNT
+//@brief:根据光标位置返回当前命中的应用ID，如果没有命中则返回APP_COUNT
 static AppId_t Desktop_SelectApp(const CursorMsg_t *cur, AppId_t last)
 {
-    
-    AppId_t hit = Desktop_HitTest(cur);
-
-    if (hit == last) return hit;
-    if (last == APP_COUNT || hit == APP_COUNT) return hit;
-
-    {
-        int16_t lr = (int16_t)(last / DESKTOP_GRID_COLS);
-        int16_t lc = (int16_t)(last % DESKTOP_GRID_COLS);
-        int16_t hr = (int16_t)(hit / DESKTOP_GRID_COLS);
-        int16_t hc = (int16_t)(hit % DESKTOP_GRID_COLS);
-
-        if (hc != lc)
-        {
-            int16_t bx = (int16_t)((hc > lc ? hc : lc) * DESKTOP_CELL_W);
-            if (hc > lc && cur->cursor_x < bx + (int16_t)DESKTOP_HYST) return last;
-            if (hc < lc && cur->cursor_x > bx - (int16_t)DESKTOP_HYST) return last;
-        }
-        if (hr != lr)
-        {
-            int16_t by = (int16_t)(DESKTOP_GRID_Y + (hr > lr ? hr : lr) * DESKTOP_CELL_H);
-            if (hr > lr && cur->cursor_y < by + (int16_t)DESKTOP_HYST) return last;
-            if (hr < lr && cur->cursor_y > by - (int16_t)DESKTOP_HYST) return last;
-        }
-    }
-
-    return hit;
+    (void)last;
+    return Desktop_HitTest(cur);
 }
 //@brief:绘制桌面界面，包括应用图标格子、光标和状态栏
 static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t sel)
@@ -112,8 +86,8 @@ static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t se
 
     OLED_SetCursor(0, 0);
     OLED_PrintString(input_alive ? "In:ON" : "In:NO");
-    OLED_FillRect(98, 0, 28, 8, OLED_WHITE);
-    OLED_PrintStringColor(100, 0, Music_Bg_IsPlaying() ? "1:||" : "1:>", OLED_BLACK);
+    OLED_FillRect(98, 0, 28, 8, OLED_BLACK);
+    OLED_PrintStringColor(100, 0, Music_Bg_IsPlaying() ? "||" : "|>", OLED_WHITE);
 
     for (uint8_t r = 0; r < DESKTOP_GRID_ROWS; r++)
     {
@@ -125,9 +99,23 @@ static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t se
 
             if (app == sel)
             {
-                OLED_FillRect((uint8_t)(x + 1U), (uint8_t)(y + 1U),
-                              DESKTOP_CELL_W_IN, DESKTOP_CELL_H_IN, OLED_WHITE);
-                Desktop_PrintLabel(x, y, app, OLED_BLACK);
+                OLED_FillRect((uint8_t)(x + 1U), (uint8_t)(y + 1U), DESKTOP_CELL_W_IN, 1U, OLED_WHITE);
+                OLED_FillRect((uint8_t)(x + 1U), (uint8_t)(y + DESKTOP_CELL_H_IN), DESKTOP_CELL_W_IN, 1U, OLED_WHITE);
+                OLED_FillRect((uint8_t)(x + 1U), (uint8_t)(y + 1U), 1U, DESKTOP_CELL_H_IN, OLED_WHITE);
+                OLED_FillRect((uint8_t)(x + DESKTOP_CELL_W_IN), (uint8_t)(y + 1U), 1U, DESKTOP_CELL_H_IN, OLED_WHITE);
+                Desktop_PrintLabel(x, y, app, OLED_WHITE);
+
+                OLED_FillRect((uint8_t)(x + 2U), (uint8_t)(y + 2U),
+                              DESKTOP_CORNER_SIZE, DESKTOP_CORNER_SIZE, OLED_WHITE);
+                OLED_FillRect((uint8_t)(x + DESKTOP_CELL_W_IN - 2U - DESKTOP_CORNER_SIZE + 1U),
+                              (uint8_t)(y + 2U),
+                              DESKTOP_CORNER_SIZE, DESKTOP_CORNER_SIZE, OLED_WHITE);
+                OLED_FillRect((uint8_t)(x + 2U),
+                              (uint8_t)(y + DESKTOP_CELL_H_IN - 2U - DESKTOP_CORNER_SIZE + 1U),
+                              DESKTOP_CORNER_SIZE, DESKTOP_CORNER_SIZE, OLED_WHITE);
+                OLED_FillRect((uint8_t)(x + DESKTOP_CELL_W_IN - 2U - DESKTOP_CORNER_SIZE + 1U),
+                              (uint8_t)(y + DESKTOP_CELL_H_IN - 2U - DESKTOP_CORNER_SIZE + 1U),
+                              DESKTOP_CORNER_SIZE, DESKTOP_CORNER_SIZE, OLED_WHITE);
             }
             else
             {
