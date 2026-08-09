@@ -18,12 +18,12 @@
 #include "Sw_Adc_Sys.h"
 #include <string.h>
 
-#define DRAW_PAGE_ROWS     6U
+#define DRAW_PAGE_ROWS     6U       //每页显示的图片行数
 
 static DrawFile_t draw_file;
 static uint8_t draw_used[DRAW_SECTOR_COUNT];
 static uint16_t draw_used_count;
-
+//@brief:根据索引生成默认图片名称，格式为"IMGxxx"，xxx为三位数字
 static void draw_make_name(uint8_t idx, char *name)
 {
     name[0] = 'I';
@@ -34,7 +34,7 @@ static void draw_make_name(uint8_t idx, char *name)
     name[5] = (char)('0' + idx % 10U);
     name[6] = '\0';
 }
-
+//@brief:扫描所有图片存储扇区，找出已使用的扇区索引，并存入draw_used数组中，同时更新draw_used_count计数
 static void draw_scan(void)
 {
     uint8_t hdr[16];
@@ -42,6 +42,7 @@ static void draw_scan(void)
     draw_used_count = 0U;
     for (uint16_t i = 0; i < DRAW_SECTOR_COUNT; i++)
     {
+        //  读取每个扇区的前16字节，检查是否为有效图片文件，如果是，则将索引存入draw_used数组中
         if (SFlash_Read((uint32_t)(DRAW_SECTOR_BASE + i) * SFLASH_SECTOR_SIZE, hdr, 16U) == SFLASH_OK
          && hdr[0] == DRAW_MAGIC0 && hdr[1] == DRAW_MAGIC1
          && hdr[2] == DRAW_MAGIC2 && hdr[3] == DRAW_MAGIC3)
@@ -50,7 +51,7 @@ static void draw_scan(void)
         }
     }
 }
-
+//@brief:根据索引加载图片文件到draw_file结构体中，如果索引无效或读取失败，则将默认名称写入name，如果有效，则将图片名称写入name
 static void draw_load_name(uint8_t idx, char *name)
 {
     uint8_t hdr[16];
@@ -63,17 +64,19 @@ static void draw_load_name(uint8_t idx, char *name)
         draw_make_name(idx, name);
         return;
     }
-
+    
     for (i = 0; i < 11U; i++)
     {
+        //hdr前四个字节为图片标志，接下来的12个字节为图片名称
         name[i] = (char)hdr[4U + i];
         if (name[i] == '\0') break;
     }
     name[i] = '\0';
 }
-
+//
 static void draw_select_render(uint8_t page, uint8_t sel)
 {
+    //计算总页数，确保至少有一页
     uint8_t pages = (draw_used_count + DRAW_PAGE_ROWS - 1U) / DRAW_PAGE_ROWS;
     uint8_t used_on_page;
     char buf[16];

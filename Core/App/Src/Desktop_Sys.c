@@ -256,6 +256,33 @@ void Desktop_Sys_Run(void)
                 Music_Bg_Toggle();
                 need_redraw = 1U;
             }
+            else if (key == '2' || key == '8' || key == '4' || key == '6')
+            {
+                int16_t dx = 0;
+                int16_t dy = 0;
+                int16_t step;
+                uint8_t sens = Set_Sys_GetSensitivity();
+                CursorMsg_t drop;
+
+                if (sens == 0U) step = 3;
+                else if (sens == 2U) step = 10;
+                else step = 6;
+
+                if (key == '2') dy = -step;
+                if (key == '8') dy = step;
+                if (key == '4') dx = -step;
+                if (key == '6') dx = step;
+
+                Cursor_KeyMove(dx, dy);
+                Cursor_GetPos(&cur.cursor_x, &cur.cursor_y);
+
+                while (osMessageQueueGet(cursorHandle, &drop, NULL, 0U) == osOK) { }
+
+                last_cursor_tick = HAL_GetTick();
+                input_alive = 1U;
+                need_redraw = 1U;
+                sel = Desktop_SelectApp(&cur, sel);
+            }
         }
         //光标按键按下时，只有当上一次按键状态为未按下时，才会触发应用切换，避免连续触发
         if (cur.button_pressed != 0U && prev_button == 0U)

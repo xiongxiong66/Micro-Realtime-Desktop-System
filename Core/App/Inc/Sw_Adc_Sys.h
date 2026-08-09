@@ -23,5 +23,7 @@ typedef struct {
 void Sw_Adc_Task_Sys();
 void Cursor_Suspend(void);
 void Cursor_Resume(void);
+void Cursor_KeyMove(int16_t dx, int16_t dy);
+void Cursor_GetPos(int16_t *x, int16_t *y);
 
 #endif

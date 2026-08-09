@@ -11,6 +11,28 @@ volatile uint32_t adc_events = 0U;
 volatile uint32_t adc_dropped = 0U;
 static uint8_t cursor_suspended = 0U;
 static uint8_t prev_state = Statue_NO;
+static volatile int16_t cursor_x = 64;
+static volatile int16_t cursor_y = 32;
+
+void Cursor_KeyMove(int16_t dx, int16_t dy)
+{
+    int16_t x = cursor_x + dx;
+    int16_t y = cursor_y + dy;
+
+    if (x < 0) x = 0;
+    if (x > 127) x = 127;
+    if (y < 0) y = 0;
+    if (y > 63) y = 63;
+
+    cursor_x = x;
+    cursor_y = y;
+}
+
+void Cursor_GetPos(int16_t *x, int16_t *y)
+{
+    if (x) *x = cursor_x;
+    if (y) *y = cursor_y;
+}
 
 void Cursor_Suspend(void)
 {
@@ -33,8 +55,6 @@ void Cursor_Resume(void)
 void Sw_Adc_Task_Sys() {
 
     uint16_t adc_x, adc_y;
-  int16_t cursor_x = 64;
-  int16_t cursor_y = 32;
   CursorMsg_t msg;
   static uint8_t prev_btn_state = 1;
   uint8_t button_pressed = 0;
