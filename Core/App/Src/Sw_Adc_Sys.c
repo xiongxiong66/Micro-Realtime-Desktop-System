@@ -10,6 +10,7 @@ uint8_t state = Statue_NO;
 volatile uint32_t adc_events = 0U;
 volatile uint32_t adc_dropped = 0U;
 static uint8_t cursor_suspended = 0U;
+static uint8_t prev_state = Statue_NO;
 
 void Cursor_Suspend(void)
 {
@@ -60,6 +61,30 @@ void Sw_Adc_Task_Sys() {
 
   for (;;)
   {
+    if (state != prev_state)
+    {
+      if (state == Statue_Yes)
+      {
+        sum_x = 0U;
+        sum_y = 0U;
+        for (i = 0U; i < 8U; i++)
+        {
+          uint16_t ax, ay;
+          if (BSP_ADC_ReadDual(&ax, &ay) == BSP_ADC_OK)
+          {
+            sum_x += ax;
+            sum_y += ay;
+          }
+          osDelay(10);
+        }
+        center_x = (uint16_t)(sum_x / 8U);
+        center_y = (uint16_t)(sum_y / 8U);
+        cursor_x = 64;
+        cursor_y = 32;
+      }
+      prev_state = state;
+    }
+
     if (BSP_ADC_ReadDual(&adc_x, &adc_y) != BSP_ADC_OK)
     {
       osDelay(20);

@@ -151,7 +151,7 @@ static void draw_toggle_pixel(int16_t x, int16_t y)
 static void draw_edit_render(int16_t cx, int16_t cy)
 {
     int16_t x = cx, y = cy;
-    uint8_t cs = (uint8_t)(Set_Sys_GetCursorSize() + 1U);
+    uint8_t cs = Set_Sys_GetCursorPixels();
 
     if (x < 0) x = 0;
     if (x > (int16_t)(OLED_WIDTH - cs)) x = (int16_t)(OLED_WIDTH - cs);
@@ -405,17 +405,7 @@ static void draw_selection(void)
     }
 }
 
-void App_Draw_Task_Sys(void)
+void Draw_Sys_Run(void)
 {
-    /* 上电后先自挂起，等待桌面任务恢复 */
-    osThreadSuspend(osThreadGetId());
-
-    for (;;)
-    {
-        draw_selection();
-
-        /* 从画图应用退出：唤醒桌面，自身回到挂起态 */
-        osThreadResume(oledHandle);
-        osThreadSuspend(osThreadGetId());
-    }
+    draw_selection();
 }

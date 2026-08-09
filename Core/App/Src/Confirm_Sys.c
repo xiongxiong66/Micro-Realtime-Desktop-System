@@ -9,7 +9,7 @@
 #include "Oled_Sys.h"
 #include "cmsis_os.h"
 #include "oled.h"
-
+//@brief:显示删除确认对话框，name为要删除的文件名，返回值为1U表示确认删除，0U表示取消删除
 uint8_t Confirm_Delete(const char *name)
 {
     char title[24];

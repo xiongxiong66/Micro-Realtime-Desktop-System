@@ -7,6 +7,7 @@
 
 #include "Screen_Sys.h"
 #include "Set_Sys.h"
+#include "Log_Sys.h"
 #include "oled.h"
 #include "main.h"
 
@@ -28,6 +29,7 @@ void Screen_Sys_Wake(void)
     {
         OLED_On();
         screen_off = 0U;
+        Log_Write(LOG_TYPE_APP, "WAKE");
     }
 }
 
@@ -42,5 +44,6 @@ void Screen_Sys_Update(void)
     {
         OLED_Off();
         screen_off = 1U;
+        Log_Write(LOG_TYPE_APP, "SLEEP");
     }
 }

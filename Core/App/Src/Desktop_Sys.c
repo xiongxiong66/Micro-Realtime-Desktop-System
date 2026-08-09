@@ -14,19 +14,20 @@
 #include "Music_Sys.h"
 #include "Monitor_Sys.h"
 #include "Set_Sys.h"
+#include "Log_Sys.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "main.h"
 
-#define DESKTOP_GRID_COLS   3U
-#define DESKTOP_GRID_ROWS   2U
-#define DESKTOP_CELL_W      42U
-#define DESKTOP_CELL_H      24U
+#define DESKTOP_GRID_COLS   3U      //桌面图标格子列数
+#define DESKTOP_GRID_ROWS   2U      //桌面图标格子行数
+#define DESKTOP_CELL_W      42U     //每个图标格子宽度
+#define DESKTOP_CELL_H      24U     //每个图标格子高度
 #define DESKTOP_GRID_Y      8U
 #define DESKTOP_CELL_W_IN   40U
 #define DESKTOP_CELL_H_IN   22U
 
-#define DESKTOP_HYST        4U
+#define DESKTOP_HYST        4U      //应用之间切换边界，在光标移动到相邻应用的边界时，必须超过4个像素才会切换应用，否则保持原应用选中状态
 #define DESKTOP_IN_TIMEOUT  1000U
 
 typedef enum {
@@ -55,7 +56,7 @@ static void Desktop_PrintLabel(uint8_t x, uint8_t y, AppId_t app, uint8_t color)
                           (uint8_t)(y + 1U + (DESKTOP_CELL_H_IN - 8U) / 2U),
                           name, color);
 }
-
+//@brief:光标命中测试，返回命中的应用ID，如果没有命中则返回APP_COUNT
 static AppId_t Desktop_HitTest(const CursorMsg_t *cur)
 {
     uint8_t row, col;
@@ -70,9 +71,11 @@ static AppId_t Desktop_HitTest(const CursorMsg_t *cur)
     return (AppId_t)(row * DESKTOP_GRID_COLS + col);                //row为0——1，col为0——2，返回值为0——5，正好对应应用ID
 }
 
-/* æ»åéä¸­ï¼åæ åå¨æ ¼è¾¹çéè¿æ¶ä¿æåéä¸­ï¼é¿åé«äº®å·¦å³è·³å¨ */
+//@brief:防止光标停在格子边界附近时选中框来回抖动，只有当光标移动到相邻应用的边界时，必须超过4个像素才会切换应用，否则保持原应用选中状态
+//cur为当前光标位置，last为上一次选中的应用ID，返回值为当前选中的应用ID，如果没有命中则返回APP_COUNT
 static AppId_t Desktop_SelectApp(const CursorMsg_t *cur, AppId_t last)
 {
+    
     AppId_t hit = Desktop_HitTest(cur);
 
     if (hit == last) return hit;
@@ -100,7 +103,7 @@ static AppId_t Desktop_SelectApp(const CursorMsg_t *cur, AppId_t last)
 
     return hit;
 }
-
+//@brief:绘制桌面界面，包括应用图标格子、光标和状态栏
 static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t sel)
 {
     int16_t cx, cy;
@@ -139,7 +142,7 @@ static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t se
 
     cx = cur->cursor_x;
     cy = cur->cursor_y;
-    uint8_t cs = (uint8_t)(Set_Sys_GetCursorSize() + 1U);
+    uint8_t cs = Set_Sys_GetCursorPixels();
     if (cx < 0) cx = 0;
     if (cx > (int16_t)(OLED_WIDTH - cs)) cx = (int16_t)(OLED_WIDTH - cs);
     if (cy < 0) cy = 0;
@@ -160,28 +163,7 @@ static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t se
 
     OLED_Display();
 }
-
-static void Oled_App_Placeholder(AppId_t app)
-{
-    char key;
-
-    OLED_Clear();
-    OLED_SetCursor(20, 16);
-    OLED_PrintString(app_names[app]);
-    OLED_SetCursor(20, 32);
-    OLED_PrintString("*:exit");
-    OLED_Display();
-
-    for (;;)
-    {
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) == osOK)
-        {
-            if (key == '*') return;
-            else if (key == '1') Music_Bg_Toggle();
-        }
-    }
-}
-
+//@brief:根据应用ID，进入对应的应用死循环，如果任务需要后台运行，则在应用中自行挂起oled任务，退出时再恢复oled任务，如果不需要后台运行，则直接在应用中运行死循环，退出时返回桌面
 static void Oled_App_Run(AppId_t app)
 {
     if (app == APP_MONITOR)
@@ -192,8 +174,7 @@ static void Oled_App_Run(AppId_t app)
     }
     else if (app == APP_DRAW)
     {
-        osThreadResume(App_DrawHandle);
-        osThreadSuspend(oledHandle);
+        Draw_Sys_Run();
     }
     else if (app == APP_FILE)
     {
@@ -215,14 +196,15 @@ static void Oled_App_Run(AppId_t app)
         Set_Sys_Run();
         Cursor_Resume();
     }
-    else
+    else if (app == APP_LOG)
     {
         Cursor_Suspend();
-        Oled_App_Placeholder(app);
+        Log_View_Run();
         Cursor_Resume();
     }
-}
 
+}
+//@brief:桌面主循环，处理光标输入、应用切换和状态栏显示，光标按键与矩阵按键都可以进入应用
 void Desktop_Sys_Run(void)
 {
     CursorMsg_t cur = {64, 32, 0};
@@ -239,7 +221,7 @@ void Desktop_Sys_Run(void)
     for (;;)
     {
         uint8_t changed = 0U;
-
+        //读到队列最后一个数据，如果光标按键的输入变化，就设置changed=1U，表示需要重新绘制桌面界面，无论有没有变化，input_alive都要设置为1U，表示光标输入还活跃
         while (osMessageQueueGet(cursorHandle, &cur, NULL, 0U) == osOK)
         {
             last_cursor_tick = HAL_GetTick();
@@ -250,13 +232,13 @@ void Desktop_Sys_Run(void)
             }
             input_alive = 1U;
         }
-
+        
         if (input_alive && (HAL_GetTick() - last_cursor_tick) >= DESKTOP_IN_TIMEOUT)
         {
             input_alive = 0U;
             changed = 1U;
         }
-
+        //sel是当前选中的应用ID，如果光标移动到相邻应用的边界时，必须超过4个像素才会切换应用，否则保持原应用选中状态
         sel = Desktop_SelectApp(&cur, sel);
 
         while (osMessageQueueGet(KeyHandle, &key, NULL, 0U) == osOK)
@@ -275,7 +257,7 @@ void Desktop_Sys_Run(void)
                 need_redraw = 1U;
             }
         }
-
+        //光标按键按下时，只有当上一次按键状态为未按下时，才会触发应用切换，避免连续触发
         if (cur.button_pressed != 0U && prev_button == 0U)
         {
             AppId_t app = sel;

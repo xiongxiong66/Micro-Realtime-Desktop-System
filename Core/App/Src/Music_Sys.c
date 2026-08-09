@@ -11,13 +11,16 @@
 #include "NameEdit_Sys.h"
 #include "Confirm_Sys.h"
 #include "buzzer.h"
+#include "Log_Sys.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "sflash.h"
 #include <string.h>
 
 #define MUSIC_PAGE_ROWS     6U
-#define MUSIC_NOTE_GAP_MS   20U
+#define MUSIC_NOTE_GAP_MS   5U
+#define MUSIC_TEMPO_NUM     5U
+#define MUSIC_TEMPO_DEN     4U
 #define MUSIC_SCRATCH_SECTOR 1024U
 #define MUSIC_COPY_CHUNK     64U
 #define MUSIC_BG_FLAG_UPDATE 0x01U
@@ -158,6 +161,7 @@ void Music_Bg_Start(uint8_t idx)
     music_bg_active = 1U;
     music_bg_paused = 0U;
     music_bg_restart = 1U;
+    Log_Write(LOG_TYPE_MUSIC, "PLAY");
 
     if (MusicPlayHandle != NULL)
     {
@@ -170,6 +174,7 @@ void Music_Bg_Toggle(void)
     if (music_bg_active == 0U) return;
 
     music_bg_paused = (uint8_t)(music_bg_paused ^ 1U);
+    Log_Write(LOG_TYPE_MUSIC, music_bg_paused ? "PAUSE" : "RESUME");
 
     if (MusicPlayHandle != NULL)
     {
@@ -220,7 +225,7 @@ void Music_Play_Task_Sys(void)
             if (music_bg_count == 0U)
             {
                 music_bg_active = 0U;
-                Buzzer_Off();
+                Buzzer_Stop();
                 osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE, osFlagsWaitAny, osWaitForever);
                 continue;
             }
@@ -229,28 +234,30 @@ void Music_Play_Task_Sys(void)
 
             if (music_load_event(music_bg_idx, music_bg_cur, &ev))
             {
-                if (ev.frequency_hz > 0U) Buzzer_On();
-                else Buzzer_Off();
+                if (ev.frequency_hz > 0U) Buzzer_SetFrequency(ev.frequency_hz);
+                else Buzzer_Stop();
 
                 dur = ev.duration_ms;
+                if (dur == 0U) dur = 10U;
+                dur = (uint16_t)(((uint32_t)dur * MUSIC_TEMPO_NUM) / MUSIC_TEMPO_DEN);
                 if (dur == 0U) dur = 10U;
             }
             else
             {
-                Buzzer_Off();
+                Buzzer_Stop();
             }
 
             flags = osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE, osFlagsWaitAny, (uint32_t)dur);
 
             if ((flags & MUSIC_BG_FLAG_UPDATE) != 0U)
             {
-                Buzzer_Off();
+                Buzzer_Stop();
                 continue;
             }
 
             if (music_bg_active != 0U && music_bg_paused == 0U)
             {
-                Buzzer_Off();
+                Buzzer_Stop();
                 osDelay(MUSIC_NOTE_GAP_MS);
                 music_bg_cur++;
                 if (music_bg_cur >= music_bg_count) music_bg_cur = 0U;
@@ -258,7 +265,7 @@ void Music_Play_Task_Sys(void)
         }
         else
         {
-            Buzzer_Off();
+            Buzzer_Stop();
             osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE, osFlagsWaitAny, osWaitForever);
         }
     }
@@ -318,6 +325,7 @@ void Music_Rename(uint8_t idx)
     OLED_PrintString("RENAMED");
     OLED_Display();
     osDelay(300U);
+    Log_Write(LOG_TYPE_MUSIC, "RENAMED");
 }
 
 void Music_Delete(uint8_t idx)
@@ -327,7 +335,10 @@ void Music_Delete(uint8_t idx)
     music_load_name(idx, name);
     if (Confirm_Delete(name))
     {
-        SFlash_EraseSector(MUSIC_SECTOR_BASE + idx);
+        if (SFlash_EraseSector(MUSIC_SECTOR_BASE + idx) == SFLASH_OK)
+        {
+            Log_Write(LOG_TYPE_MUSIC, "DELETED");
+        }
     }
 }
 

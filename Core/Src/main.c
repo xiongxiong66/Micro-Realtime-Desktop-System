@@ -28,11 +28,11 @@
 #include "Oled_Sys.h"
 #include "Sw_Adc_Sys.h"
 #include "MKey_Sys.h"
-#include "Draw_Sys.h"
 #include "File_Sys.h"
 #include "Music_Sys.h"
 #include "Set_Sys.h"
 #include "Screen_Sys.h"
+#include "Log_Sys.h"
 
 /* USER CODE END Includes */
 
@@ -58,6 +58,8 @@ ADC_HandleTypeDef hadc1;
 I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
+
+TIM_HandleTypeDef htim3;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -87,12 +89,12 @@ const osThreadAttr_t MKey_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow1,
 };
-/* Definitions for App_Draw */
-osThreadId_t App_DrawHandle;
-const osThreadAttr_t App_Draw_attributes = {
-  .name = "App_Draw",
+/* Definitions for Log */
+osThreadId_t LogHandle;
+const osThreadAttr_t Log_attributes = {
+  .name = "Log",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityLow1,
 };
 /* Definitions for App_File */
 osThreadId_t App_FileHandle;
@@ -125,6 +127,11 @@ osMessageQueueId_t KeyHandle;
 const osMessageQueueAttr_t Key_attributes = {
   .name = "Key"
 };
+/* Definitions for Log queue */
+osMessageQueueId_t LogQueueHandle;
+const osMessageQueueAttr_t LogQueue_attributes = {
+  .name = "Log"
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -135,11 +142,12 @@ static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_TIM3_Init(void);
 void StartDefaultTask(void *argument);
 void Oled_Task(void *argument);
 void Sw_Adc_Task(void *argument);
 void MKey_Task(void *argument);
-void App_Draw_Task(void *argument);
+void Log_Task(void *argument);
 void App_File_Task(void *argument);
 void App_Music_Task(void *argument);
 void MusicPlay_Task(void *argument);
@@ -185,10 +193,12 @@ int main(void)
   MX_ADC1_Init();
   MX_I2C1_Init();
   MX_SPI1_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   Set_Sys_Load();
   OLED_Init();
   Set_Sys_ApplyBrightness();
+  Set_Sys_ApplyVolume();
   Screen_Sys_Init();
 
   /* USER CODE END 2 */
@@ -215,6 +225,9 @@ int main(void)
   /* creation of Key */
   KeyHandle = osMessageQueueNew (1, sizeof(uint8_t), &Key_attributes);
 
+  /* creation of Log queue */
+  LogQueueHandle = osMessageQueueNew (8, 18, &LogQueue_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -232,8 +245,8 @@ int main(void)
   /* creation of MKey */
   MKeyHandle = osThreadNew(MKey_Task, NULL, &MKey_attributes);
 
-  /* creation of App_Draw */
-  App_DrawHandle = osThreadNew(App_Draw_Task, NULL, &App_Draw_attributes);
+  /* creation of Log */
+  LogHandle = osThreadNew(Log_Task, NULL, &Log_attributes);
 
   /* creation of App_File */
   App_FileHandle = osThreadNew(App_File_Task, NULL, &App_File_attributes);
@@ -443,6 +456,65 @@ static void MX_SPI1_Init(void)
 }
 
 /**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 71;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 3816;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 1908;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+  HAL_TIM_MspPostInit(&htim3);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -460,8 +532,8 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, SPI1_NSS_Pin|Beep_Pin|MKey_x4_Pin|MKey_x3_Pin
-                          |MKey_x2_Pin|MKey_x1_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, SPI1_NSS_Pin|MKey_x4_Pin|MKey_x3_Pin|MKey_x2_Pin
+                          |MKey_x1_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : SW_Pin MKey_y4_Pin MKey_y3_Pin MKey_y2_Pin
                            MKey_y1_Pin */
@@ -478,10 +550,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SPI1_NSS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : Beep_Pin MKey_x4_Pin MKey_x3_Pin MKey_x2_Pin
-                           MKey_x1_Pin */
-  GPIO_InitStruct.Pin = Beep_Pin|MKey_x4_Pin|MKey_x3_Pin|MKey_x2_Pin
-                          |MKey_x1_Pin;
+  /*Configure GPIO pins : MKey_x4_Pin MKey_x3_Pin MKey_x2_Pin MKey_x1_Pin */
+  GPIO_InitStruct.Pin = MKey_x4_Pin|MKey_x3_Pin|MKey_x2_Pin|MKey_x1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -556,18 +626,18 @@ void MKey_Task(void *argument)
   /* USER CODE END MKey_Task */
 }
 
-/* USER CODE BEGIN Header_App_Draw_Task */
+/* USER CODE BEGIN Header_Log_Task */
 /**
-* @brief Function implementing the App_Draw thread.
+* @brief Function implementing the Log thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_App_Draw_Task */
-void App_Draw_Task(void *argument)
+/* USER CODE END Header_Log_Task */
+void Log_Task(void *argument)
 {
-  /* USER CODE BEGIN App_Draw_Task */
-  App_Draw_Task_Sys();
-  /* USER CODE END App_Draw_Task */
+  /* USER CODE BEGIN Log_Task */
+  Log_Task_Sys();
+  /* USER CODE END Log_Task */
 }
 
 /* USER CODE BEGIN Header_App_File_Task */
