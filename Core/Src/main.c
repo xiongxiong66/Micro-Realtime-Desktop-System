@@ -33,6 +33,7 @@
 #include "Set_Sys.h"
 #include "Screen_Sys.h"
 #include "Log_Sys.h"
+#include "DS3231.h"
 
 /* USER CODE END Includes */
 
@@ -56,6 +57,7 @@
 ADC_HandleTypeDef hadc1;
 
 I2C_HandleTypeDef hi2c1;
+I2C_HandleTypeDef hi2c2;
 
 SPI_HandleTypeDef hspi1;
 
@@ -72,7 +74,7 @@ const osThreadAttr_t defaultTask_attributes = {
 osThreadId_t oledHandle;
 const osThreadAttr_t oled_attributes = {
   .name = "oled",
-  .stack_size = 128 * 4,
+  .stack_size = 192 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for Sw_Adc */
@@ -143,6 +145,7 @@ static void MX_ADC1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_I2C2_Init(void);
 void StartDefaultTask(void *argument);
 void Oled_Task(void *argument);
 void Sw_Adc_Task(void *argument);
@@ -194,7 +197,9 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   MX_TIM3_Init();
+  MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
+  DS3231_Init();
   Set_Sys_Load();
   OLED_Init();
   Set_Sys_ApplyBrightness();
@@ -414,6 +419,40 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
+  * @brief I2C2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C2_Init(void)
+{
+
+  /* USER CODE BEGIN I2C2_Init 0 */
+
+  /* USER CODE END I2C2_Init 0 */
+
+  /* USER CODE BEGIN I2C2_Init 1 */
+
+  /* USER CODE END I2C2_Init 1 */
+  hi2c2.Instance = I2C2;
+  hi2c2.Init.ClockSpeed = 100000;
+  hi2c2.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c2.Init.OwnAddress1 = 0;
+  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c2.Init.OwnAddress2 = 0;
+  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C2_Init 2 */
+
+  /* USER CODE END I2C2_Init 2 */
 
 }
 

@@ -11,6 +11,7 @@
 #include "Monitor_Sys.h"
 #include "Log_Sys.h"
 #include "buzzer.h"
+#include "DS3231.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "sflash.h"
@@ -233,45 +234,150 @@ void Set_Sys_ChangePin(const char *pin)
     Set_Sys_Save();
 }
 
-static void Set_Render(uint8_t sel)
+static void Set_RtcRender(uint8_t sel, const DS3231_Time_t *t)
+{
+    static const char * const names[] = {"YEAR", "MON", "DAY", "HOUR", "MIN"};
+    uint8_t vals[] = {t->year, t->month, t->day, t->hour, t->minute};
+
+    OLED_Clear();
+    OLED_SetCursor(0, 0);
+    OLED_PrintString("TIME SET");
+
+    for (uint8_t i = 0U; i < 5U; i++)
+    {
+        OLED_SetCursor(0, (uint8_t)(8U + i * 8U));
+        OLED_PrintString(sel == i ? ">" : " ");
+        OLED_PrintString(names[i]);
+        OLED_PrintChar(' ');
+        OLED_PrintNum((uint32_t)vals[i], 10);
+    }
+
+    OLED_SetCursor(0, 56);
+    OLED_PrintString("#:SAVE *:BACK");
+    OLED_Display();
+}
+
+static void Set_RtcAdjust(DS3231_Time_t *t, uint8_t sel, int8_t dir)
+{
+    uint8_t *value = NULL;
+    uint8_t min = 0U;
+    uint8_t max = 0U;
+
+    switch (sel)
+    {
+        case 0U: value = &t->year;   max = 99U; break;
+        case 1U: value = &t->month;  min = 1U;  max = 12U; break;
+        case 2U: value = &t->day;    min = 1U;  max = 31U; break;
+        case 3U: value = &t->hour;   max = 23U; break;
+        case 4U: value = &t->minute; max = 59U; break;
+        default: return;
+    }
+
+    if (dir > 0)
+    {
+        *value = (*value < max) ? (uint8_t)(*value + 1U) : min;
+    }
+    else
+    {
+        *value = (*value > min) ? (uint8_t)(*value - 1U) : max;
+    }
+}
+
+static void Set_RtcSet(void)
+{
+    DS3231_Time_t t;
+    uint8_t sel = 0U;
+    char key;
+
+    if (!DS3231_ReadTime(&t)) return;
+
+    for (;;)
+    {
+        Set_RtcRender(sel, &t);
+
+        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        {
+            continue;
+        }
+
+        if (key == '2') sel = (sel > 0U) ? (uint8_t)(sel - 1U) : 4U;
+        else if (key == '8') sel = (sel < 4U) ? (uint8_t)(sel + 1U) : 0U;
+        else if (key == '4') Set_RtcAdjust(&t, sel, -1);
+        else if (key == '6') Set_RtcAdjust(&t, sel, 1);
+        else if (key == '#')
+        {
+            t.second = 0U;
+            if (DS3231_WriteTime(&t))
+            {
+                OLED_Clear();
+                OLED_SetCursor(16, 28);
+                OLED_PrintString("SAVED");
+                OLED_Display();
+                osDelay(300U);
+            }
+            return;
+        }
+        else if (key == '*')
+        {
+            return;
+        }
+    }
+}
+
+static void Set_Render(uint8_t page, uint8_t sel)
 {
     OLED_Clear();
     OLED_SetCursor(0, 0);
-    OLED_PrintString("SET");
+    OLED_PrintString(page == 0U ? "SET 1/2" : "SET 2/2");
 
-    OLED_SetCursor(0, 8);
-    OLED_PrintString(sel == 0U ? ">" : " ");
-    OLED_PrintString("SIZE ");
-    OLED_PrintNum((uint32_t)g_set_config.cursor_size + 1U, 10);
-    OLED_PrintString("/3");
+    if (page == 0U)
+    {
+        OLED_SetCursor(0, 8);
+        OLED_PrintString(sel == 0U ? ">" : " ");
+        OLED_PrintString("SIZE ");
+        OLED_PrintNum((uint32_t)g_set_config.cursor_size + 1U, 10);
+        OLED_PrintString("/3");
 
-    OLED_SetCursor(0, 16);
-    OLED_PrintString(sel == 1U ? ">" : " ");
-    OLED_PrintString("SPEED ");
-    OLED_PrintNum((uint32_t)g_set_config.sensitivity + 1U, 10);
-    OLED_PrintString("/3");
+        OLED_SetCursor(0, 16);
+        OLED_PrintString(sel == 1U ? ">" : " ");
+        OLED_PrintString("SPEED ");
+        OLED_PrintNum((uint32_t)g_set_config.sensitivity + 1U, 10);
+        OLED_PrintString("/3");
 
-    OLED_SetCursor(0, 24);
-    OLED_PrintString(sel == 2U ? ">" : " ");
-    OLED_PrintString("BRIGHT ");
-    OLED_PrintNum((uint32_t)g_set_config.brightness + 1U, 10);
-    OLED_PrintString("/3");
+        OLED_SetCursor(0, 24);
+        OLED_PrintString(sel == 2U ? ">" : " ");
+        OLED_PrintString("BRIGHT ");
+        OLED_PrintNum((uint32_t)g_set_config.brightness + 1U, 10);
+        OLED_PrintString("/3");
 
-    OLED_SetCursor(0, 32);
-    OLED_PrintString(sel == 3U ? ">" : " ");
-    OLED_PrintString("VOLUME ");
-    OLED_PrintNum((uint32_t)g_set_config.volume, 10);
-    OLED_PrintString("/9");
+        OLED_SetCursor(0, 32);
+        OLED_PrintString(sel == 3U ? ">" : " ");
+        OLED_PrintString("VOLUME ");
+        OLED_PrintNum((uint32_t)g_set_config.volume, 10);
+        OLED_PrintString("/9");
 
-    OLED_SetCursor(0, 40);
-    OLED_PrintString(sel == 4U ? ">" : " ");
-    OLED_PrintString("SCREEN ");
-    OLED_PrintNum((uint32_t)(10U + (uint32_t)g_set_config.screen_timeout * 5U), 10);
-    OLED_PrintString("s");
+        OLED_SetCursor(0, 40);
+        OLED_PrintString(sel == 4U ? ">" : " ");
+        OLED_PrintString("SCREEN ");
+        OLED_PrintNum((uint32_t)(10U + (uint32_t)g_set_config.screen_timeout * 5U), 10);
+        OLED_PrintString("s");
 
-    OLED_SetCursor(0, 48);
-    OLED_PrintString(sel == 5U ? ">" : " ");
-    OLED_PrintString("PASS");
+        OLED_SetCursor(0, 48);
+        OLED_PrintString("8:PASS >");
+    }
+    else
+    {
+        OLED_SetCursor(0, 8);
+        OLED_PrintString(sel == 0U ? ">" : " ");
+        OLED_PrintString("PASS");
+
+        OLED_SetCursor(0, 16);
+        OLED_PrintString(sel == 1U ? ">" : " ");
+        OLED_PrintString("TIME");
+
+        OLED_SetCursor(0, 48);
+        OLED_PrintString("2:BACK");
+    }
 
     OLED_SetCursor(0, 56);
     OLED_PrintString("4/6:CHG *:BACK");
@@ -362,6 +468,7 @@ static uint8_t Set_EnterPin(char *buf, uint8_t max_len, const char *title)
 
 void Set_Sys_Run(void)
 {
+    uint8_t page = 0U;
     uint8_t sel = 0U;
     char key;
 
@@ -369,7 +476,7 @@ void Set_Sys_Run(void)
 
     for (;;)
     {
-        Set_Render(sel);
+        Set_Render(page, sel);
 
         if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
         {
@@ -379,19 +486,49 @@ void Set_Sys_Run(void)
         switch (key)
         {
             case '2':
-                sel = (sel > 0U) ? (uint8_t)(sel - 1U) : 5U;
+                if (page == 0U)
+                {
+                    sel = (sel > 0U) ? (uint8_t)(sel - 1U) : 0U;
+                }
+                else
+                {
+                    if (sel == 0U)
+                    {
+                        page = 0U;
+                        sel = 4U;
+                    }
+                    else
+                    {
+                        sel = 0U;
+                    }
+                }
                 break;
             case '8':
-                sel = (sel + 1U < 6U) ? (uint8_t)(sel + 1U) : 0U;
+                if (page == 0U)
+                {
+                    if (sel < 4U)
+                    {
+                        sel++;
+                    }
+                    else
+                    {
+                        page = 1U;
+                        sel = 0U;
+                    }
+                }
+                else
+                {
+                    sel = (sel < 1U) ? 1U : 0U;
+                }
                 break;
             case '4':
-                if (sel < 5U) Set_Change(sel, -1);
+                if (page == 0U && sel < 5U) Set_Change(sel, -1);
                 break;
             case '6':
-                if (sel < 5U) Set_Change(sel, 1);
+                if (page == 0U && sel < 5U) Set_Change(sel, 1);
                 break;
             case '#':
-                if (sel == 5U)
+                if (page == 1U && sel == 0U)
                 {
                     char old_pin[SETTINGS_PIN_MAX_LEN + 1U];
                     char new_pin[SETTINGS_PIN_MAX_LEN + 1U];
@@ -419,6 +556,10 @@ void Set_Sys_Run(void)
                             osDelay(300U);
                         }
                     }
+                }
+                else if (page == 1U && sel == 1U)
+                {
+                    Set_RtcSet();
                 }
                 break;
             case '1':

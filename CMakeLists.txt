@@ -53,6 +53,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Dev/Src/oled.c
     Core/Dev/Src/mkey.c
     Core/Dev/Src/sflash.c
+    Core/Dev/Src/DS3231.c
     Core/App/Src/Oled_Sys.c
     Core/App/Src/Sw_Adc_Sys.c
     Core/App/Src/MKey_Sys.c

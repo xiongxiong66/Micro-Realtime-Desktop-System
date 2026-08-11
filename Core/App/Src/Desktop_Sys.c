@@ -15,6 +15,7 @@
 #include "Monitor_Sys.h"
 #include "Set_Sys.h"
 #include "Log_Sys.h"
+#include "DS3231.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "main.h"
@@ -43,6 +44,12 @@ typedef enum {
 static const char app_names[APP_COUNT][5] = {
     "FILE", "DRAW", "MUSI", "LOG", "MON", "SET"
 };
+
+static void Desktop_Print2(uint32_t value)
+{
+    if (value < 10U) OLED_PrintChar('0');
+    OLED_PrintNum(value, 10);
+}
 
 //@brief:在指定图标格子居中打印应用名称
 static void Desktop_PrintLabel(uint8_t x, uint8_t y, AppId_t app, uint8_t color)
@@ -144,13 +151,32 @@ static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t se
     }
 
     OLED_SetCursor(0, 56);
-    OLED_PrintString("X:");
-    OLED_PrintNum((uint32_t)cur->cursor_x, 10);
-    OLED_PrintString(" Y:");
-    OLED_PrintNum((uint32_t)cur->cursor_y, 10);
+    {
+        DS3231_Time_t rtc;
+
+        if (DS3231_ReadTime(&rtc))
+        {
+            Desktop_Print2((uint32_t)rtc.year);
+            OLED_PrintChar(':');
+            OLED_PrintNum((uint32_t)rtc.month, 10);
+            OLED_PrintChar(':');
+            OLED_PrintNum((uint32_t)rtc.day, 10);
+            OLED_PrintChar(':');
+            OLED_PrintNum((uint32_t)rtc.hour, 10);
+            OLED_PrintChar(':');
+            Desktop_Print2((uint32_t)rtc.minute);
+            OLED_PrintChar(':');
+            Desktop_Print2((uint32_t)rtc.second);
+        }
+        else
+        {
+            OLED_PrintString("--:--:--");
+        }
+    }
 
     OLED_Display();
 }
+
 //@brief:根据应用ID，进入对应的应用死循环，如果任务需要后台运行，则在应用中自行挂起oled任务，退出时再恢复oled任务，如果不需要后台运行，则直接在应用中运行死循环，退出时返回桌面
 static void Oled_App_Run(AppId_t app)
 {
@@ -200,6 +226,7 @@ void Desktop_Sys_Run(void)
     uint8_t prev_button = 0U;
     uint8_t need_redraw = 1U;
     uint32_t last_cursor_tick = HAL_GetTick();
+    uint32_t last_time_tick = HAL_GetTick();
     int16_t last_x = cur.cursor_x;
     int16_t last_y = cur.cursor_y;
     uint8_t last_button = cur.button_pressed;
@@ -225,6 +252,12 @@ void Desktop_Sys_Run(void)
         {
             input_alive = 0U;
             changed = 1U;
+        }
+
+        if ((HAL_GetTick() - last_time_tick) >= 1000U)
+        {
+            last_time_tick = HAL_GetTick();
+            need_redraw = 1U;
         }
         //sel是当前选中的应用ID，如果光标移动到相邻应用的边界时，必须超过4个像素才会切换应用，否则保持原应用选中状态
         sel = Desktop_SelectApp(&cur, sel);
