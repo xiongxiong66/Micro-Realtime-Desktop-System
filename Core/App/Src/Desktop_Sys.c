@@ -28,7 +28,6 @@
 #define DESKTOP_CELL_W_IN   40U
 #define DESKTOP_CELL_H_IN   22U
 
-#define DESKTOP_IN_TIMEOUT  1000U
 #define DESKTOP_CORNER_SIZE 4U
 
 typedef enum {
@@ -85,14 +84,12 @@ static AppId_t Desktop_SelectApp(const CursorMsg_t *cur, AppId_t last)
     return Desktop_HitTest(cur);
 }
 //@brief:绘制桌面界面，包括应用图标格子、光标和状态栏
-static void Desktop_Draw(const CursorMsg_t *cur, uint8_t input_alive, AppId_t sel)
+static void Desktop_Draw(const CursorMsg_t *cur, AppId_t sel)
 {
     int16_t cx, cy;
 
     OLED_Clear();
 
-    OLED_SetCursor(0, 0);
-    OLED_PrintString(input_alive ? "In:ON" : "In:NO");
     OLED_FillRect(98, 0, 28, 8, OLED_BLACK);
     OLED_PrintStringColor(100, 0, Music_Bg_IsPlaying() ? "||" : "|>", OLED_WHITE);
 
@@ -222,10 +219,8 @@ static void Oled_App_Run(AppId_t app)
 void Desktop_Sys_Run(void)
 {
     CursorMsg_t cur = {64, 32, 0};
-    uint8_t input_alive = 1U;
     uint8_t prev_button = 0U;
     uint8_t need_redraw = 1U;
-    uint32_t last_cursor_tick = HAL_GetTick();
     uint32_t last_time_tick = HAL_GetTick();
     int16_t last_x = cur.cursor_x;
     int16_t last_y = cur.cursor_y;
@@ -239,19 +234,11 @@ void Desktop_Sys_Run(void)
         //读到队列最后一个数据，如果光标按键的输入变化，就设置changed=1U，表示需要重新绘制桌面界面，无论有没有变化，input_alive都要设置为1U，表示光标输入还活跃
         while (osMessageQueueGet(cursorHandle, &cur, NULL, 0U) == osOK)
         {
-            last_cursor_tick = HAL_GetTick();
             if (cur.cursor_x != last_x || cur.cursor_y != last_y
-             || cur.button_pressed != last_button || !input_alive)
+             || cur.button_pressed != last_button)
             {
                 changed = 1U;
             }
-            input_alive = 1U;
-        }
-        
-        if (input_alive && (HAL_GetTick() - last_cursor_tick) >= DESKTOP_IN_TIMEOUT)
-        {
-            input_alive = 0U;
-            changed = 1U;
         }
 
         if ((HAL_GetTick() - last_time_tick) >= 1000U)
@@ -299,8 +286,6 @@ void Desktop_Sys_Run(void)
 
                 while (osMessageQueueGet(cursorHandle, &drop, NULL, 0U) == osOK) { }
 
-                last_cursor_tick = HAL_GetTick();
-                input_alive = 1U;
                 need_redraw = 1U;
                 sel = Desktop_SelectApp(&cur, sel);
             }
@@ -319,7 +304,7 @@ void Desktop_Sys_Run(void)
 
         if (changed || need_redraw)
         {
-            Desktop_Draw(&cur, input_alive, sel);
+            Desktop_Draw(&cur, sel);
             need_redraw = 0U;
         }
 

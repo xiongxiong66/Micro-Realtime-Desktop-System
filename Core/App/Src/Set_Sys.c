@@ -12,6 +12,7 @@
 #include "Log_Sys.h"
 #include "buzzer.h"
 #include "DS3231.h"
+#include "Screen_Sys.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "sflash.h"
@@ -416,6 +417,7 @@ static uint8_t Set_EnterPin(char *buf, uint8_t max_len, const char *title)
     char key;
 
     buf[0] = '\0';
+    Screen_Sys_SetForceOff(0U);
     while (osMessageQueueGet(KeyHandle, &key, NULL, 0U) == osOK) { }
 
     for (;;)
@@ -452,6 +454,7 @@ static uint8_t Set_EnterPin(char *buf, uint8_t max_len, const char *title)
             }
             else
             {
+                Screen_Sys_SetForceOff(1U);
                 return 0U;
             }
         }
@@ -460,6 +463,7 @@ static uint8_t Set_EnterPin(char *buf, uint8_t max_len, const char *title)
             if (len > 0U)
             {
                 buf[len] = '\0';
+                Screen_Sys_SetForceOff(1U);
                 return 1U;
             }
         }

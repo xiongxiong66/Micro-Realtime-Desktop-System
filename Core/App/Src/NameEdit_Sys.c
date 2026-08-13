@@ -7,6 +7,7 @@
 
 #include "NameEdit_Sys.h"
 #include "Oled_Sys.h"
+#include "Screen_Sys.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include <string.h>
@@ -18,6 +19,8 @@ uint8_t NameEdit_Run(char *name, uint8_t max_len, uint8_t prefill)
     char key;
 
     if (max_len > sizeof(buf)) max_len = (uint8_t)sizeof(buf);
+
+    Screen_Sys_SetForceOff(0U);
 
     if (prefill && name)
     {
@@ -64,6 +67,7 @@ uint8_t NameEdit_Run(char *name, uint8_t max_len, uint8_t prefill)
             }
             else
             {
+                Screen_Sys_SetForceOff(1U);
                 return 0U;
             }
         }
@@ -73,6 +77,7 @@ uint8_t NameEdit_Run(char *name, uint8_t max_len, uint8_t prefill)
             {
                 memcpy(name, buf, (size_t)len + 1U);
             }
+            Screen_Sys_SetForceOff(1U);
             return 1U;
         }
     }

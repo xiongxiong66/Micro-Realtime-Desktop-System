@@ -13,6 +13,7 @@
 
 static uint32_t screen_last_activity = 0U;
 static uint8_t screen_off = 0U;
+static uint8_t force_off_enabled = 1U;
 
 void Screen_Sys_Init(void)
 {
@@ -46,4 +47,22 @@ void Screen_Sys_Update(void)
         screen_off = 1U;
         Log_Write(LOG_TYPE_APP, "SLEEP");
     }
+}
+
+void Screen_Sys_ForceOff(void)
+{
+    screen_last_activity = HAL_GetTick();
+    OLED_Off();
+    screen_off = 1U;
+    Log_Write(LOG_TYPE_APP, "SLEEP");
+}
+
+void Screen_Sys_SetForceOff(uint8_t enable)
+{
+    force_off_enabled = enable ? 1U : 0U;
+}
+
+uint8_t Screen_Sys_ForceOffEnabled(void)
+{
+    return force_off_enabled;
 }

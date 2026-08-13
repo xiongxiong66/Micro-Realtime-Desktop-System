@@ -2,6 +2,7 @@
 #include "Desktop_Sys.h"
 #include "Set_Sys.h"
 #include "Log_Sys.h"
+#include "Screen_Sys.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "main.h"
@@ -116,10 +117,20 @@ static void Oled_Login_Sys(void)
 
 void Oled_Task_Sys(void)
 {
+    OLED_Clear();
+    OLED_SetCursor(49, 28);
+    OLED_PrintString("START");
+    OLED_Display();
+    osDelay(1000U);
+
+    Screen_Sys_SetForceOff(0U);
+
     if (state == Statue_NO)
     {
         Oled_Login_Sys();
     }
+
+    Screen_Sys_SetForceOff(1U);
 
     if (state == Statue_Yes)
     {
