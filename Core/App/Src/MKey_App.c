@@ -1,14 +1,17 @@
 /**
   ******************************************************************************
-  * @file           : MKey_Sys.c
+  * @file           : MKey_App.c
   * @brief          : Matrix keypad task, sends one key per press to UI tasks
   ******************************************************************************
   */
 
-#include "MKey_Sys.h"
+#include "MKey_App.h"
 #include "mkey.h"
 #include "keypad.h"
-#include "Screen_Sys.h"
+#include "Screen_App.h"
+
+#define MKEY_SCAN_PERIOD_MS       10U
+#define MKEY_SCAN_PERIOD_SLEEP_MS 50U
 
 volatile uint32_t mkey_events = 0U;
 volatile uint32_t mkey_dropped = 0U;
@@ -37,6 +40,6 @@ void MKey_Task_Sys(void)
             }
         }
 
-        osDelay(10U);
+        osDelay(Screen_Sys_IsOff() ? MKEY_SCAN_PERIOD_SLEEP_MS : MKEY_SCAN_PERIOD_MS);
     }
 }

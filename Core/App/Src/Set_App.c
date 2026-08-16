@@ -1,18 +1,18 @@
 /**
   ******************************************************************************
-  * @file           : Set_Sys.c
+  * @file           : Set_App.c
   * @brief          : Settings app with W25Q64 persistence
   ******************************************************************************
   */
 
-#include "Set_Sys.h"
-#include "Oled_Sys.h"
-#include "Music_Sys.h"
-#include "Monitor_Sys.h"
-#include "Log_Sys.h"
+#include "Set_App.h"
+#include "Oled_App.h"
+#include "Music_App.h"
+#include "Monitor_App.h"
+#include "Log_App.h"
 #include "buzzer.h"
 #include "DS3231.h"
-#include "Screen_Sys.h"
+#include "Screen_App.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "sflash.h"

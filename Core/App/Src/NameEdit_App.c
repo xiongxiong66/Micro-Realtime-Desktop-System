@@ -1,13 +1,13 @@
 /**
   ******************************************************************************
-  * @file           : NameEdit_Sys.c
+  * @file           : NameEdit_App.c
   * @brief          : Shared keypad name editor
   ******************************************************************************
   */
 
-#include "NameEdit_Sys.h"
-#include "Oled_Sys.h"
-#include "Screen_Sys.h"
+#include "NameEdit_App.h"
+#include "Oled_App.h"
+#include "Screen_App.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include <string.h>

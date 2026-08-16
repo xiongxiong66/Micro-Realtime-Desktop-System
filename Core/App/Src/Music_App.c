@@ -1,17 +1,17 @@
 /**
   ******************************************************************************
-  * @file           : Music_Sys.c
+  * @file           : Music_App.c
   * @brief          : Music app: file list and playback placeholder
   ******************************************************************************
   */
 
-#include "Music_Sys.h"
-#include "Oled_Sys.h"
+#include "Music_App.h"
+#include "Oled_App.h"
 #include "MusicFile.h"
-#include "NameEdit_Sys.h"
-#include "Confirm_Sys.h"
+#include "NameEdit_App.h"
+#include "Confirm_App.h"
 #include "buzzer.h"
-#include "Log_Sys.h"
+#include "Log_App.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "sflash.h"
@@ -514,19 +514,7 @@ static void music_selection(void)
     }
 }
 
-void App_Music_Task_Sys(void)
+void Music_App_Run(void)
 {
-    Buzzer_Init();
-
-    /* Suspend on startup until the desktop task resumes this app. */
-    osThreadSuspend(osThreadGetId());
-
-    for (;;)
-    {
-        music_selection();
-
-        /* Return to desktop and wait for the next resume. */
-        osThreadResume(oledHandle);
-        osThreadSuspend(osThreadGetId());
-    }
+    music_selection();
 }

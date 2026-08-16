@@ -2,7 +2,7 @@
 #define __OLED_SYS_H
 
 #include "cmsis_os.h"
-#include "Sw_Adc_Sys.h"
+#include "Sw_Adc_App.h"
 #include "oled.h"
 
 extern osMessageQueueId_t cursorHandle;

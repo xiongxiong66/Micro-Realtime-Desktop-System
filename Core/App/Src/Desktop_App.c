@@ -1,20 +1,20 @@
 /**
   ******************************************************************************
-  * @file           : Desktop_Sys.c
+  * @file           : Desktop_App.c
   * @brief          : Desktop main interface and app switching
   ******************************************************************************
   */
 
-#include "Desktop_Sys.h"
-#include "Oled_Sys.h"
-#include "Sw_Adc_Sys.h"
-#include "MKey_Sys.h"
-#include "Draw_Sys.h"
-#include "File_Sys.h"
-#include "Music_Sys.h"
-#include "Monitor_Sys.h"
-#include "Set_Sys.h"
-#include "Log_Sys.h"
+#include "Desktop_App.h"
+#include "Oled_App.h"
+#include "Sw_Adc_App.h"
+#include "MKey_App.h"
+#include "Draw_App.h"
+#include "File_App.h"
+#include "Music_App.h"
+#include "Monitor_App.h"
+#include "Set_App.h"
+#include "Log_App.h"
 #include "DS3231.h"
 #include "cmsis_os.h"
 #include "oled.h"
@@ -197,8 +197,7 @@ static void Oled_App_Run(AppId_t app)
     else if (app == APP_MUSIC)
     {
         Cursor_Suspend();
-        osThreadResume(App_MusicHandle);
-        osThreadSuspend(oledHandle);
+        Music_App_Run();
         Cursor_Resume();
     }
     else if (app == APP_SETTINGS)

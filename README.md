@@ -48,7 +48,7 @@ FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
 
 | 队列 | 深度 | 消息 |
 |------|------|------|
-| `cursorHandle` | 1 | 光标坐标 + 摇杆按钮 |
+| `cursorHandle` | 4 | 光标坐标 + 摇杆按钮 |
 | `KeyHandle` | 1 | 按键字符 |
 | `LogQueueHandle` | 8 | 日志类型 + 文本 |
 

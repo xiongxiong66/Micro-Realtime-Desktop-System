@@ -54,19 +54,19 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Dev/Src/mkey.c
     Core/Dev/Src/sflash.c
     Core/Dev/Src/DS3231.c
-    Core/App/Src/Oled_Sys.c
-    Core/App/Src/Sw_Adc_Sys.c
-    Core/App/Src/MKey_Sys.c
-    Core/App/Src/NameEdit_Sys.c
-    Core/App/Src/Confirm_Sys.c
-    Core/App/Src/Draw_Sys.c
-    Core/App/Src/File_Sys.c
-    Core/App/Src/Music_Sys.c
-    Core/App/Src/Monitor_Sys.c
-    Core/App/Src/Set_Sys.c
-    Core/App/Src/Screen_Sys.c
-    Core/App/Src/Log_Sys.c
-    Core/App/Src/Desktop_Sys.c
+    Core/App/Src/Oled_App.c
+    Core/App/Src/Sw_Adc_App.c
+    Core/App/Src/MKey_App.c
+    Core/App/Src/NameEdit_App.c
+    Core/App/Src/Confirm_App.c
+    Core/App/Src/Draw_App.c
+    Core/App/Src/File_App.c
+    Core/App/Src/Music_App.c
+    Core/App/Src/Monitor_App.c
+    Core/App/Src/Set_App.c
+    Core/App/Src/Screen_App.c
+    Core/App/Src/Log_App.c
+    Core/App/Src/Desktop_App.c
 )
 
 # Add include paths

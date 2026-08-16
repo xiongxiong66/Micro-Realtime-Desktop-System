@@ -1,8 +1,11 @@
-#include "Sw_Adc_Sys.h"
-#include "Set_Sys.h"
-#include "Screen_Sys.h"
+#include "Sw_Adc_App.h"
+#include "Set_App.h"
+#include "Screen_App.h"
 #include "cmsis_os.h"
 #include "main.h"
+
+#define SW_ADC_PERIOD_MS       30U
+#define SW_ADC_PERIOD_SLEEP_MS 200U
 
 extern osMessageQueueId_t cursorHandle;
 
@@ -185,6 +188,6 @@ void Sw_Adc_Task_Sys() {
             adc_dropped++;
         }
     }
-    osDelay(30);
+    osDelay(Screen_Sys_IsOff() ? SW_ADC_PERIOD_SLEEP_MS : SW_ADC_PERIOD_MS);
   }
 }

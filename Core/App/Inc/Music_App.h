@@ -1,6 +1,6 @@
 /**
   ******************************************************************************
-  * @file           : Music_Sys.h
+  * @file           : Music_App.h
   * @brief          : Music app task header
   ******************************************************************************
   */
@@ -10,10 +10,9 @@
 #include "cmsis_os.h"
 #include <stdint.h>
 
-extern osThreadId_t App_MusicHandle;
 extern osThreadId_t MusicPlayHandle;
 
-void App_Music_Task_Sys(void);
+void Music_App_Run(void);
 void Music_Play_Task_Sys(void);
 void Music_Play(uint8_t idx);
 void Music_Rename(uint8_t idx);

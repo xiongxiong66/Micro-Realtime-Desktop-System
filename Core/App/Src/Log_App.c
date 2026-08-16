@@ -1,14 +1,14 @@
 /**
   ******************************************************************************
-  * @file           : Log_Sys.c
+  * @file           : Log_App.c
   * @brief          : W25Q64 circular system log and viewer
   ******************************************************************************
   */
 
-#include "Log_Sys.h"
-#include "Oled_Sys.h"
-#include "Music_Sys.h"
-#include "Set_Sys.h"
+#include "Log_App.h"
+#include "Oled_App.h"
+#include "Music_App.h"
+#include "Set_App.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "sflash.h"

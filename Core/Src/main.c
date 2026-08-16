@@ -25,14 +25,14 @@
 #include "oled.h"
 #include "adc.h"
 #include <stdint.h>
-#include "Oled_Sys.h"
-#include "Sw_Adc_Sys.h"
-#include "MKey_Sys.h"
-#include "File_Sys.h"
-#include "Music_Sys.h"
-#include "Set_Sys.h"
-#include "Screen_Sys.h"
-#include "Log_Sys.h"
+#include "Oled_App.h"
+#include "Sw_Adc_App.h"
+#include "MKey_App.h"
+#include "File_App.h"
+#include "Music_App.h"
+#include "Set_App.h"
+#include "Screen_App.h"
+#include "Log_App.h"
 #include "DS3231.h"
 
 /* USER CODE END Includes */
@@ -105,13 +105,6 @@ const osThreadAttr_t App_File_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
-/* Definitions for App_Music */
-osThreadId_t App_MusicHandle;
-const osThreadAttr_t App_Music_attributes = {
-  .name = "App_Music",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
 /* Definitions for MusicPlay */
 osThreadId_t MusicPlayHandle;
 const osThreadAttr_t MusicPlay_attributes = {
@@ -152,7 +145,6 @@ void Sw_Adc_Task(void *argument);
 void MKey_Task(void *argument);
 void Log_Task(void *argument);
 void App_File_Task(void *argument);
-void App_Music_Task(void *argument);
 void MusicPlay_Task(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -255,9 +247,6 @@ int main(void)
 
   /* creation of App_File */
   App_FileHandle = osThreadNew(App_File_Task, NULL, &App_File_attributes);
-
-  /* creation of App_Music */
-  App_MusicHandle = osThreadNew(App_Music_Task, NULL, &App_Music_attributes);
 
   /* creation of MusicPlay */
   MusicPlayHandle = osThreadNew(MusicPlay_Task, NULL, &MusicPlay_attributes);
@@ -691,20 +680,6 @@ void App_File_Task(void *argument)
   /* USER CODE BEGIN App_File_Task */
   App_File_Task_Sys();
   /* USER CODE END App_File_Task */
-}
-
-/* USER CODE BEGIN Header_App_Music_Task */
-/**
-* @brief Function implementing the App_Music thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_App_Music_Task */
-void App_Music_Task(void *argument)
-{
-  /* USER CODE BEGIN App_Music_Task */
-  App_Music_Task_Sys();
-  /* USER CODE END App_Music_Task */
 }
 
 /* USER CODE BEGIN Header_MusicPlay_Task */

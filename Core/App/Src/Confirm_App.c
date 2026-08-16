@@ -1,12 +1,12 @@
 /**
   ******************************************************************************
-  * @file           : Confirm_Sys.c
+  * @file           : Confirm_App.c
   * @brief          : Shared delete confirm dialog
   ******************************************************************************
   */
 
-#include "Confirm_Sys.h"
-#include "Oled_Sys.h"
+#include "Confirm_App.h"
+#include "Oled_App.h"
 #include "cmsis_os.h"
 #include "oled.h"
 //@brief:显示删除确认对话框，name为要删除的文件名，返回值为1U表示确认删除，0U表示取消删除

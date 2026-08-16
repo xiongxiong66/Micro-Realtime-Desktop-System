@@ -1,21 +1,21 @@
 /**
   ******************************************************************************
-  * @file           : Draw_Sys.c
+  * @file           : Draw_App.c
   * @brief          : Drawing app: picture selection and pixel editor
   ******************************************************************************
   */
 
-#include "Draw_Sys.h"
-#include "Oled_Sys.h"
+#include "Draw_App.h"
+#include "Oled_App.h"
 #include "ImgFile.h"
-#include "Music_Sys.h"
-#include "Set_Sys.h"
-#include "NameEdit_Sys.h"
-#include "Confirm_Sys.h"
+#include "Music_App.h"
+#include "Set_App.h"
+#include "NameEdit_App.h"
+#include "Confirm_App.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "sflash.h"
-#include "Sw_Adc_Sys.h"
+#include "Sw_Adc_App.h"
 #include <string.h>
 
 #define DRAW_PAGE_ROWS     6U       //每页显示的图片行数

@@ -1,6 +1,6 @@
 /**
   ******************************************************************************
-  * @file           : Screen_Sys.h
+  * @file           : Screen_App.h
   * @brief          : Screen timeout and wake-up control header
   ******************************************************************************
   */
@@ -15,5 +15,6 @@ void Screen_Sys_Update(void);
 void Screen_Sys_ForceOff(void);
 void Screen_Sys_SetForceOff(uint8_t enable);
 uint8_t Screen_Sys_ForceOffEnabled(void);
+uint8_t Screen_Sys_IsOff(void);
 
 #endif /* __SCREEN_SYS_H */

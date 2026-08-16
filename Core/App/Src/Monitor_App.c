@@ -1,15 +1,15 @@
 /**
   ******************************************************************************
-  * @file           : Monitor_Sys.c
+  * @file           : Monitor_App.c
   * @brief          : System monitor app with task/stack diagnostics
   ******************************************************************************
   */
 
-#include "Monitor_Sys.h"
-#include "Oled_Sys.h"
-#include "Sw_Adc_Sys.h"
-#include "MKey_Sys.h"
-#include "Music_Sys.h"
+#include "Monitor_App.h"
+#include "Oled_App.h"
+#include "Sw_Adc_App.h"
+#include "MKey_App.h"
+#include "Music_App.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "main.h"
