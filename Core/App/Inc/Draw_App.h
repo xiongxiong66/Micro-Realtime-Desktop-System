@@ -7,6 +7,9 @@
 #ifndef __DRAW_SYS_H
 #define __DRAW_SYS_H
 
+#include <stdint.h>
+
 void Draw_Sys_Run(void);
+uint8_t Draw_NameUsed(const char *new_name, const char *old_name);
 
 #endif /* __DRAW_SYS_H */

@@ -259,7 +259,7 @@ static void draw_edit(uint8_t idx, uint8_t is_new)
                     memset(draw_file.data, 0, OLED_BUFFER_SIZE);
                     break;
                 case '#':
-                    if (NameEdit_Run(draw_file.name, (uint8_t)sizeof(draw_file.name), !is_new))
+                    if (NameEdit_Run(draw_file.name, (uint8_t)sizeof(draw_file.name), !is_new, Draw_NameUsed))
                     {
                         draw_save(idx);
                         return;
@@ -411,4 +411,35 @@ static void draw_selection(void)
 void Draw_Sys_Run(void)
 {
     draw_selection();
+}
+
+uint8_t Draw_NameUsed(const char *new_name, const char *old_name)
+{
+    uint8_t hdr[16];
+    char other[12];
+    uint16_t i;
+
+    if (new_name == NULL || new_name[0] == '\0') return 0U;
+
+    for (i = 0U; i < DRAW_SECTOR_COUNT; i++)
+    {
+        if (SFlash_Read((uint32_t)(DRAW_SECTOR_BASE + i) * SFLASH_SECTOR_SIZE,
+                        hdr, 16U) != SFLASH_OK) continue;
+        if (hdr[0] != DRAW_MAGIC0 || hdr[1] != DRAW_MAGIC1
+         || hdr[2] != DRAW_MAGIC2 || hdr[3] != DRAW_MAGIC3) continue;
+
+        for (uint8_t j = 0U; j < 11U; j++)
+        {
+            other[j] = (char)hdr[4U + j];
+            if (other[j] == '\0') break;
+        }
+        other[11] = '\0';
+
+        if (strcmp(other, new_name) == 0
+         && (old_name == NULL || strcmp(other, old_name) != 0))
+        {
+            return 1U;
+        }
+    }
+    return 0U;
 }

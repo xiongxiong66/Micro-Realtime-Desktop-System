@@ -10,6 +10,7 @@
 #include "ImgFile.h"
 #include "MusicFile.h"
 #include "Music_App.h"
+#include "Draw_App.h"
 #include "NameEdit_App.h"
 #include "Confirm_App.h"
 #include "cmsis_os.h"
@@ -219,7 +220,7 @@ static void file_rename_picture(uint8_t idx)
         return;
     }
 
-    if (NameEdit_Run(file_draw.name, (uint8_t)sizeof(file_draw.name), 1U))
+    if (NameEdit_Run(file_draw.name, (uint8_t)sizeof(file_draw.name), 1U, Draw_NameUsed))
     {
         if (SFlash_SaveSector(DRAW_SECTOR_BASE + idx, (const uint8_t *)&file_draw, sizeof(DrawFile_t)) == SFLASH_OK)
         {

@@ -1,10 +1,11 @@
 #include "Sw_Adc_App.h"
+#include "InputDev_App.h"
 #include "Set_App.h"
 #include "Screen_App.h"
 #include "cmsis_os.h"
 #include "main.h"
 
-#define SW_ADC_PERIOD_MS       30U
+#define SW_ADC_PERIOD_MS       20U
 #define SW_ADC_PERIOD_SLEEP_MS 200U
 
 extern osMessageQueueId_t cursorHandle;
@@ -116,6 +117,8 @@ void Sw_Adc_Task_Sys() {
       osDelay(20);
       continue;
     }
+
+    InputDev_MonitorSample(adc_x, adc_y, center_x, center_y);
 
     int16_t dx = (int16_t)adc_x - (int16_t)center_x;
     int16_t dy = (int16_t)adc_y - (int16_t)center_y;

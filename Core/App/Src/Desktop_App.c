@@ -6,6 +6,7 @@
   */
 
 #include "Desktop_App.h"
+#include "InputDev_App.h"
 #include "Oled_App.h"
 #include "Sw_Adc_App.h"
 #include "MKey_App.h"
@@ -89,6 +90,8 @@ static void Desktop_Draw(const CursorMsg_t *cur, AppId_t sel)
     int16_t cx, cy;
 
     OLED_Clear();
+
+    OLED_PrintStringColor(0, 0, InputDev_IsConnected() ? "IN YES" : "IN NO", OLED_WHITE);
 
     OLED_FillRect(98, 0, 28, 8, OLED_BLACK);
     OLED_PrintStringColor(100, 0, Music_Bg_IsPlaying() ? "||" : "|>", OLED_WHITE);

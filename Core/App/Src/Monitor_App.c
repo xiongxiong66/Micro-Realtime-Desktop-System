@@ -6,6 +6,7 @@
   */
 
 #include "Monitor_App.h"
+#include "InputDev_App.h"
 #include "Oled_App.h"
 #include "Sw_Adc_App.h"
 #include "MKey_App.h"
@@ -156,6 +157,22 @@ static void Monitor_DrawTasks(uint8_t page, uint8_t pages, UBaseType_t task_coun
     OLED_Display();
 }
 
+static void Monitor_DrawDevices(uint8_t page, uint8_t pages)
+{
+    Monitor_DrawHeader(page, pages);
+
+    OLED_SetCursor(0, 16);
+    OLED_PrintString("JOY ");
+    OLED_PrintString(InputDev_IsConnected() ? "OK" : "FAIL");
+
+    OLED_SetCursor(0, 24);
+    OLED_PrintString("IN ");
+    OLED_PrintString(InputDev_IsConnected() ? "YES" : "NO");
+
+    Monitor_DrawFooter();
+    OLED_Display();
+}
+
 void Monitor_Sys_Run(void)
 {
     uint8_t page = 0U;
@@ -173,12 +190,16 @@ void Monitor_Sys_Run(void)
             last_refresh = now;
 
             (void)Monitor_GetTaskData(&task_count);
-            pages = (uint8_t)(1U + (task_count + MONITOR_TASKS_PER_PAGE - 1U) / MONITOR_TASKS_PER_PAGE);
+            pages = (uint8_t)(1U + (task_count + MONITOR_TASKS_PER_PAGE - 1U) / MONITOR_TASKS_PER_PAGE + 1U);
             if (page >= pages) page = (uint8_t)(pages - 1U);
 
             if (page == 0U)
             {
                 Monitor_DrawSummary(page, pages, task_count);
+            }
+            else if (page + 1U == pages)
+            {
+                Monitor_DrawDevices(page, pages);
             }
             else
             {
@@ -195,7 +216,7 @@ void Monitor_Sys_Run(void)
                 UBaseType_t count = uxTaskGetNumberOfTasks();
 
                 if (count > MONITOR_MAX_TASKS) count = MONITOR_MAX_TASKS;
-                pages = (uint8_t)(1U + (count + MONITOR_TASKS_PER_PAGE - 1U) / MONITOR_TASKS_PER_PAGE);
+                pages = (uint8_t)(1U + (count + MONITOR_TASKS_PER_PAGE - 1U) / MONITOR_TASKS_PER_PAGE + 1U);
 
                 if (key == '4')
                 {

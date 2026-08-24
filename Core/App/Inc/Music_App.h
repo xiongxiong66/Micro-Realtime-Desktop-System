@@ -17,6 +17,7 @@ void Music_Play_Task_Sys(void);
 void Music_Play(uint8_t idx);
 void Music_Rename(uint8_t idx);
 void Music_Delete(uint8_t idx);
+uint8_t Music_NameUsed(const char *new_name, const char *old_name);
 void Music_Bg_Start(uint8_t idx);
 void Music_Bg_Prepare(uint8_t idx);
 void Music_Bg_Toggle(void);

@@ -12,7 +12,8 @@
 #include "oled.h"
 #include <string.h>
 
-uint8_t NameEdit_Run(char *name, uint8_t max_len, uint8_t prefill)
+uint8_t NameEdit_Run(char *name, uint8_t max_len, uint8_t prefill,
+                     uint8_t (*check_dup)(const char *new_name, const char *old_name))
 {
     char buf[12] = {0};
     uint8_t len = 0;
@@ -75,6 +76,15 @@ uint8_t NameEdit_Run(char *name, uint8_t max_len, uint8_t prefill)
         {
             if (len > 0U && name)
             {
+                if (check_dup != NULL && check_dup(buf, name))
+                {
+                    OLED_Clear();
+                    OLED_SetCursor(0, 24);
+                    OLED_PrintString("DUP NAME");
+                    OLED_Display();
+                    osDelay(500U);
+                    continue;
+                }
                 memcpy(name, buf, (size_t)len + 1U);
             }
             Screen_Sys_SetForceOff(1U);

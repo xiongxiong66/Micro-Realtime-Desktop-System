@@ -385,7 +385,7 @@ void Music_Rename(uint8_t idx)
     uint32_t scratch = (uint32_t)MUSIC_SCRATCH_SECTOR * SFLASH_SECTOR_SIZE;
 
     music_load_name(idx, name);
-    if (NameEdit_Run(name, MUSIC_NAME_LEN, 1U) != 1U) return;
+    if (NameEdit_Run(name, MUSIC_NAME_LEN, 1U, Music_NameUsed) != 1U) return;
 
     if (SFlash_Read(src, hdr, MUSIC_HEADER_BYTES) != SFLASH_OK) return;
 
@@ -411,6 +411,26 @@ void Music_Rename(uint8_t idx)
     OLED_Display();
     osDelay(300U);
     Log_Write(LOG_TYPE_MUSIC, "RENAMED");
+}
+
+uint8_t Music_NameUsed(const char *new_name, const char *old_name)
+{
+    char other[MUSIC_NAME_LEN];
+    uint16_t i;
+
+    if (new_name == NULL || new_name[0] == '\0') return 0U;
+
+    for (i = 0U; i < MUSIC_SECTOR_COUNT; i++)
+    {
+        music_load_name((uint8_t)i, other);
+        if (other[0] != '\0'
+         && strcmp(other, new_name) == 0
+         && (old_name == NULL || strcmp(other, old_name) != 0))
+        {
+            return 1U;
+        }
+    }
+    return 0U;
 }
 
 void Music_Delete(uint8_t idx)
