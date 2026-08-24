@@ -21,7 +21,7 @@
 | 外设 | 引脚 | 说明 |
 |------|------|------|
 | OLED | PB6/SCL, PB7/SDA | I2C1, SSD1306 128×64 |
-| 摇杆 X/Y | PA0/PA1 | ADC1 双通道 |
+| 摇杆 X/Y | PA0/PA1 | ADC1 双通道（DMA1_Channel1 读取） |
 | 摇杆按键 | PA2 | GPIO 输入，上拉 |
 | W25Q64 | PA5/SCK, PA6/MISO, PA7/MOSI, PB0/CS | SPI1, 8MB |
 | 无源蜂鸣器 | PB1 | TIM3_CH4 PWM |
@@ -33,16 +33,40 @@
 
 ```text
 FreeRTOS (CMSIS-RTOS2)
+  ├─ defaultTask   空转占位任务
+  ├─ Oled_Task     登录、桌面、前台应用（含音乐/文件列表界面）
   ├─ MKey_Task     矩阵键盘扫描/消抖/入队
-  ├─ Sw_Adc_Task   摇杆采样/光标队列
+  ├─ Sw_Adc_Task   摇杆 DMA 采样/光标队列
   ├─ Log_Task      日志队列 → W25Q64
   ├─ MusicPlay_Task 后台音乐播放
-  ├─ App_File_Task  File 应用
-  ├─ App_Music_Task Music 列表应用
-  └─ Oled_Task     登录、桌面、前台应用
+  └─ App_File_Task  File 应用
 ```
 
 FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
+
+## 摇杆 ADC（DMA 读取）
+
+- ADC1 双通道：PA0 = CH0，PA1 = CH1
+- 使用 DMA1_Channel1，普通模式，一次传输 2 个结果
+- `BSP_ADC_ReadDual()` 固定返回 `buf[0] = CH0`、`buf[1] = CH1`
+- 不再依赖轮询时序，上电后左右/上下不会随机互换
+
+## 息屏与低功耗
+
+息屏有两种入口：
+
+- 超时自动息屏：`MKey` 任务周期调用 `Screen_Sys_Update()`
+- `A` 键强制息屏（登录、命名、密码输入界面除外）
+
+息屏后：
+
+- OLED 发送 `DISPLAY OFF`
+- 挂起 `oled`、`Log` 任务
+- `MKey` 扫描周期从 10ms 降为 50ms
+- `Sw_Adc` 采样周期从 30ms 降为 200ms
+- 任意按键或摇杆活动通过 `Screen_Sys_Wake()` 唤醒并恢复任务
+
+> 当前只做任务级降频，尚未进入 MCU Sleep/Stop 模式，CPU 在息屏期间仍在运行。
 
 ## 队列
 
@@ -122,6 +146,8 @@ FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
 cmake --build build\Debug -j 4
 ```
 
+`CMakeLists.txt` 中 FreeRTOS 中间件单独使用 `-Os` 编译，应用代码保持 `-O0`。
+
 固件输出：
 
 ```text
@@ -131,8 +157,8 @@ build/Debug/test1.elf
 当前编译占用：
 
 ```text
-RAM:   18320 B / 20 KB   (89.45%)
-FLASH: 64780 B / 64 KB   (98.85%)
+RAM:   18392 B / 20 KB   (89.80%)
+FLASH: 59572 B / 64 KB   (90.90%)
 ```
 
 > FLASH 剩余空间已经非常紧张，后续新增功能前建议先压缩代码或改用 `-Os`。
