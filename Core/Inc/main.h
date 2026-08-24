@@ -51,6 +51,9 @@ extern "C" {
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
+/* Exported variables --------------------------------------------------------*/
+extern DMA_HandleTypeDef hdma_adc1;
+
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 

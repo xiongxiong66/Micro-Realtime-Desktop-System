@@ -37,6 +37,10 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
+# FreeRTOS is stable middleware; keep app code at debug level but shrink the
+# RTOS library so the build still fits in the 64KB flash.
+target_compile_options(FreeRTOS PRIVATE -Os)
+
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths

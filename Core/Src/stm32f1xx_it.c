@@ -173,6 +173,11 @@ void TIM4_IRQHandler(void)
   /* USER CODE END TIM4_IRQn 1 */
 }
 
+void DMA1_Channel1_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(&hdma_adc1);
+}
+
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
