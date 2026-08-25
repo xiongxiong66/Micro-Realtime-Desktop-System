@@ -6,11 +6,13 @@
   */
 
 #include "InputDev_App.h"
+#include "Log_App.h"
 
 #define INPUTDEV_JOY_AVG_SAMPLES    100U
 #define INPUTDEV_JOY_BL_MIN_OFFSET  500U
 
 static volatile uint8_t input_joy_ok = 1U;
+static uint8_t input_joy_prev = 1U;
 static uint16_t input_x_buf[INPUTDEV_JOY_AVG_SAMPLES] = {0U};
 static uint16_t input_y_buf[INPUTDEV_JOY_AVG_SAMPLES] = {0U};
 static uint8_t input_buf_idx = 0U;
@@ -48,5 +50,12 @@ void InputDev_MonitorSample(uint16_t x, uint16_t y, uint16_t center_x, uint16_t 
     else
     {
         input_joy_ok = 1U;
+    }
+
+    if (input_joy_ok != input_joy_prev)
+    {
+        input_joy_prev = input_joy_ok;
+        if (input_joy_ok != 0U) Log_Write(LOG_TYPE_APP, "JOY ON");
+        else Log_Write(LOG_TYPE_ERROR, "JOY OFF");
     }
 }

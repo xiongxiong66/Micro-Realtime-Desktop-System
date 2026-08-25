@@ -21,9 +21,10 @@
 #define LOG_DATA_SECTORS       223U
 #define LOG_ENTRY_SIZE         32U
 #define LOG_ENTRIES_PER_SECTOR (SFLASH_SECTOR_SIZE / LOG_ENTRY_SIZE)
+#define LOG_RING_CAPACITY      (LOG_DATA_SECTORS * LOG_ENTRIES_PER_SECTOR)
 #define LOG_QUEUE_DEPTH        8U
 #define LOG_FLUSH_ENTRIES      8U
-#define LOG_VIEW_MAX           24U
+#define LOG_PAGE_ROWS          6U
 
 typedef struct __attribute__((packed)) {
     uint32_t magic;
@@ -57,8 +58,9 @@ static uint32_t log_next_seq = 1U;
 static uint32_t log_cur_sector = LOG_DATA_BASE;
 static uint32_t log_cur_offset;
 static uint8_t log_ready;
-static LogView_t log_view[LOG_VIEW_MAX];
-static uint8_t log_view_count;
+static LogView_t log_page[LOG_PAGE_ROWS];
+static uint8_t log_page_count;
+static uint32_t log_total_count;
 
 static uint8_t Log_EntryChecksum(const LogEntry_t *entry)
 {
@@ -102,9 +104,6 @@ static uint8_t Log_HeaderValid(const LogHeader_t *header)
          && header->checksum == Log_HeaderChecksum(header)) ? 1U : 0U;
 }
 
-static void Log_AddView(const LogEntry_t *entry);
-static void Log_SortView(void);
-
 static void Log_SaveHeader(void)
 {
     LogHeader_t h;
@@ -114,7 +113,7 @@ static void Log_SaveHeader(void)
     h.next_seq = log_next_seq;
     h.cur_sector = log_cur_sector;
     h.cur_offset = log_cur_offset;
-    h.total = 0U;
+    h.total = log_total_count;
     h.checksum = Log_HeaderChecksum(&h);
 
     if (SFlash_EraseSector(LOG_HEADER_SECTOR) == SFLASH_OK)
@@ -123,84 +122,73 @@ static void Log_SaveHeader(void)
     }
 }
 
-static void Log_LoadView(void)
+static void Log_CountEntries(void)
 {
-    uint32_t s = log_cur_sector;
-    uint32_t limit = log_cur_offset / LOG_ENTRY_SIZE;
-    uint32_t scanned = 0U;
+    uint32_t count = 0U;
 
-    if (limit > LOG_ENTRIES_PER_SECTOR) limit = LOG_ENTRIES_PER_SECTOR;
-    log_view_count = 0U;
-
-    while (scanned < LOG_DATA_SECTORS && log_view_count < LOG_VIEW_MAX)
+    for (uint32_t s = LOG_DATA_BASE; s < LOG_DATA_BASE + LOG_DATA_SECTORS; s++)
     {
-        for (uint32_t i = limit; i > 0U; i--)
+        for (uint32_t i = 0U; i < LOG_ENTRIES_PER_SECTOR; i++)
         {
             LogEntry_t e;
-            uint32_t addr = s * SFLASH_SECTOR_SIZE + (i - 1U) * LOG_ENTRY_SIZE;
+            uint32_t addr = s * SFLASH_SECTOR_SIZE + i * LOG_ENTRY_SIZE;
 
             if (SFlash_Read(addr, (uint8_t *)&e, LOG_ENTRY_SIZE) == SFLASH_OK
              && Log_EntryValid(&e))
             {
-                Log_AddView(&e);
+                count++;
             }
-            if (log_view_count >= LOG_VIEW_MAX) break;
+        }
+    }
+    log_total_count = count;
+}
+
+static void Log_ReadPage(uint32_t page)
+{
+    uint32_t s = log_cur_sector;
+    uint32_t limit = log_cur_offset / LOG_ENTRY_SIZE;
+    uint32_t skip = page * LOG_PAGE_ROWS;
+    uint32_t scanned = 0U;
+    uint8_t got = 0U;
+
+    if (limit > LOG_ENTRIES_PER_SECTOR) limit = LOG_ENTRIES_PER_SECTOR;
+
+    while (scanned < LOG_DATA_SECTORS && got < LOG_PAGE_ROWS)
+    {
+        for (uint32_t i = limit; i > 0U && got < LOG_PAGE_ROWS; i--)
+        {
+            LogEntry_t e;
+            uint32_t addr = s * SFLASH_SECTOR_SIZE + (i - 1U) * LOG_ENTRY_SIZE;
+
+            /* 未刷入 Flash 或已擦除的槽位无效，跳过继续往前找 */
+            if (SFlash_Read(addr, (uint8_t *)&e, LOG_ENTRY_SIZE) != SFLASH_OK
+             || !Log_EntryValid(&e))
+            {
+                continue;
+            }
+
+            if (skip > 0U)
+            {
+                skip--;
+                continue;
+            }
+
+            log_page[got].seq = e.seq;
+            log_page[got].timestamp = e.timestamp;
+            log_page[got].type = e.type;
+            memset(log_page[got].text, 0, sizeof(log_page[got].text));
+            memcpy(log_page[got].text, e.data, e.len);
+            got++;
         }
 
-        if (log_view_count >= LOG_VIEW_MAX) break;
+        if (got >= LOG_PAGE_ROWS) break;
 
         s = (s <= LOG_DATA_BASE) ? LOG_DATA_BASE + LOG_DATA_SECTORS - 1U : s - 1U;
         limit = LOG_ENTRIES_PER_SECTOR;
         scanned++;
     }
 
-    Log_SortView();
-}
-
-static void Log_AddView(const LogEntry_t *entry)
-{
-    LogView_t v;
-    uint8_t i;
-
-    v.seq = entry->seq;
-    v.timestamp = entry->timestamp;
-    v.type = entry->type;
-    memset(v.text, 0, sizeof(v.text));
-    memcpy(v.text, entry->data, entry->len);
-
-    if (log_view_count < LOG_VIEW_MAX)
-    {
-        for (i = log_view_count; i > 0U; i--)
-        {
-            log_view[i] = log_view[i - 1U];
-        }
-        log_view[0] = v;
-        log_view_count++;
-    }
-    else if (v.seq > log_view[LOG_VIEW_MAX - 1U].seq)
-    {
-        for (i = LOG_VIEW_MAX - 1U; i > 0U; i--)
-        {
-            log_view[i] = log_view[i - 1U];
-        }
-        log_view[0] = v;
-    }
-}
-
-static void Log_SortView(void)
-{
-    for (uint8_t i = 0U; i + 1U < log_view_count; i++)
-    {
-        for (uint8_t j = i + 1U; j < log_view_count; j++)
-        {
-            if (log_view[i].seq < log_view[j].seq)
-            {
-                LogView_t t = log_view[i];
-                log_view[i] = log_view[j];
-                log_view[j] = t;
-            }
-        }
-    }
+    log_page_count = got;
 }
 
 static void Log_Scan(void)
@@ -210,7 +198,7 @@ static void Log_Scan(void)
     log_next_seq = 1U;
     log_cur_sector = LOG_DATA_BASE;
     log_cur_offset = 0U;
-    log_view_count = 0U;
+    log_total_count = 0U;
 
     for (uint32_t s = LOG_DATA_BASE; s < LOG_DATA_BASE + LOG_DATA_SECTORS; s++)
     {
@@ -222,7 +210,7 @@ static void Log_Scan(void)
             if (SFlash_Read(addr, (uint8_t *)&e, LOG_ENTRY_SIZE) != SFLASH_OK) continue;
             if (!Log_EntryValid(&e)) continue;
 
-            Log_AddView(&e);
+            log_total_count++;
             if (e.seq > max_seq)
             {
                 max_seq = e.seq;
@@ -249,7 +237,6 @@ static void Log_Scan(void)
         }
     }
 
-    Log_SortView();
     log_ready = 1U;
 }
 
@@ -270,7 +257,8 @@ static void Log_Init(void)
         log_next_seq = h.next_seq;
         log_cur_sector = h.cur_sector;
         log_cur_offset = h.cur_offset;
-        Log_LoadView();
+        log_total_count = h.total;
+        if (log_total_count == 0U && h.next_seq > 1U) Log_CountEntries();
         log_ready = 1U;
         return;
     }
@@ -330,7 +318,7 @@ static void Log_Append(const LogMsg_t *msg)
     memcpy(&log_flush_buf[(uint32_t)log_flush_count * LOG_ENTRY_SIZE], &e, LOG_ENTRY_SIZE);
     log_flush_count++;
     log_cur_offset += LOG_ENTRY_SIZE;
-    Log_AddView(&e);
+    if (log_total_count < LOG_RING_CAPACITY) log_total_count++;
 
     if (log_flush_count >= LOG_FLUSH_ENTRIES)
     {
@@ -394,11 +382,12 @@ static char Log_TypeChar(uint8_t type)
         case LOG_TYPE_MUSIC:   return 'M';
         case LOG_TYPE_APP:     return 'A';
         case LOG_TYPE_ERROR:   return 'E';
+        case LOG_TYPE_DRAW:    return 'D';
         default:               return '?';
     }
 }
 
-static void Log_Render(uint8_t page, uint8_t pages)
+static void Log_Render(uint16_t page, uint16_t pages)
 {
     OLED_Clear();
     OLED_SetCursor(0, 0);
@@ -407,22 +396,19 @@ static void Log_Render(uint8_t page, uint8_t pages)
     OLED_PrintChar('/');
     OLED_PrintNum((uint32_t)pages, 10);
 
-    if (log_view_count == 0U)
+    if (log_total_count == 0U)
     {
         OLED_SetCursor(0, 24);
         OLED_PrintString("No Log");
     }
     else
     {
-        for (uint8_t row = 0U; row < 6U; row++)
+        for (uint8_t row = 0U; row < log_page_count; row++)
         {
-            uint8_t idx = (uint8_t)(page * 6U + row);
-            if (idx >= log_view_count) break;
-
             OLED_SetCursor(0, (uint8_t)(8U + row * 8U));
-            OLED_PrintChar(Log_TypeChar(log_view[idx].type));
+            OLED_PrintChar(Log_TypeChar(log_page[row].type));
             OLED_PrintChar(' ');
-            OLED_PrintString(log_view[idx].text);
+            OLED_PrintString(log_page[row].text);
         }
     }
 
@@ -433,15 +419,16 @@ static void Log_Render(uint8_t page, uint8_t pages)
 
 void Log_View_Run(void)
 {
-    uint8_t page = 0U;
+    uint16_t page = 0U;
     char key;
 
     for (;;)
     {
-        uint8_t pages = (log_view_count + 5U) / 6U;
+        uint16_t pages = (uint16_t)((log_total_count + LOG_PAGE_ROWS - 1U) / LOG_PAGE_ROWS);
         if (pages == 0U) pages = 1U;
-        if (page >= pages) page = (uint8_t)(pages - 1U);
+        if (page >= pages) page = (uint16_t)(pages - 1U);
 
+        Log_ReadPage((uint32_t)page);
         Log_Render(page, pages);
 
         if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)

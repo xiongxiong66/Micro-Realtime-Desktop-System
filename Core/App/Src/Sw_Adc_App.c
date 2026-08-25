@@ -7,7 +7,7 @@
 
 #define SW_ADC_PERIOD_MS       20U
 #define SW_ADC_PERIOD_SLEEP_MS 200U
-#define SW_ADC_PERIOD_DEEP_MS  300U
+#define SW_ADC_PERIOD_DEEP_MS  200U
 
 extern osMessageQueueId_t cursorHandle;
 

@@ -16,6 +16,7 @@
 #define LOG_TYPE_MUSIC   3U
 #define LOG_TYPE_APP     4U
 #define LOG_TYPE_ERROR   5U
+#define LOG_TYPE_DRAW    6U
 
 typedef struct {
     uint8_t type;

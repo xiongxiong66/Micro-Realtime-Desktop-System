@@ -188,7 +188,7 @@ uint8_t Set_Sys_GetCursorSize(void)
 
 uint8_t Set_Sys_GetCursorPixels(void)
 {
-    static const uint8_t sizes[] = {1U, 2U, 5U};
+    static const uint8_t sizes[] = {1U, 4U, 5U};
 
     if (g_set_config.cursor_size >= 3U) return 2U;
     return sizes[g_set_config.cursor_size];

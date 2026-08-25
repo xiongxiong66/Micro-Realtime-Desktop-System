@@ -17,12 +17,30 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
+#include <string.h>
 
 #define MONITOR_MAX_TASKS    16U
 #define MONITOR_TASKS_PER_PAGE 6U
 
 static TaskStatus_t monitor_task_status[MONITOR_MAX_TASKS];
 static volatile uint32_t monitor_error_count = 0U;
+
+static void Monitor_SortByName(UBaseType_t count)
+{
+    for (UBaseType_t i = 0U; i + 1U < count; i++)
+    {
+        for (UBaseType_t j = 0U; j + 1U < count - i; j++)
+        {
+            if (strcmp(monitor_task_status[j].pcTaskName,
+                       monitor_task_status[j + 1U].pcTaskName) > 0)
+            {
+                TaskStatus_t tmp = monitor_task_status[j];
+                monitor_task_status[j] = monitor_task_status[j + 1U];
+                monitor_task_status[j + 1U] = tmp;
+            }
+        }
+    }
+}
 
 void Monitor_Sys_ReportError(void)
 {
@@ -67,7 +85,10 @@ static uint8_t Monitor_GetTaskData(UBaseType_t *task_count)
     *task_count = count;
     if (count == 0U) return 0U;
 
-    return (uint8_t)(uxTaskGetSystemState(monitor_task_status, count, NULL) == count);
+    if (uxTaskGetSystemState(monitor_task_status, count, NULL) != count) return 0U;
+
+    Monitor_SortByName(count);
+    return 1U;
 }
 
 static void Monitor_DrawHeader(uint8_t page, uint8_t pages)

@@ -12,7 +12,7 @@
 
 #define MKEY_SCAN_PERIOD_MS       10U
 #define MKEY_SCAN_PERIOD_SLEEP_MS 50U
-#define MKEY_SCAN_PERIOD_DEEP_MS  300U
+#define MKEY_SCAN_PERIOD_DEEP_MS  200U
 
 volatile uint32_t mkey_events = 0U;
 volatile uint32_t mkey_dropped = 0U;

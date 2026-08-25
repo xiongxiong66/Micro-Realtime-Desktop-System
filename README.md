@@ -6,14 +6,15 @@
 
 - PIN 密码登录，密码保存在 W25Q64
 - 桌面 3×2 应用网格，摇杆和键盘都能移动光标
-- Draw 绘图：新建、绘制、保存、重命名、删除图片
+- Draw 绘图：新建、绘制、保存、重命名、删除图片，支持画点/画线/区域擦除三种画笔模式
 - File：管理 MUS1 音乐和 DRW1 图片
 - Music：后台播放、歌曲页时间显示、暂停/继续、播完自动暂停
 - 无源蜂鸣器：TIM3_CH4 PWM 输出不同频率
-- Monitor：系统运行时间、输入事件、丢弃事件、错误、HEAP、任务栈水位
+- Monitor：系统运行时间、输入事件、丢弃事件、错误、HEAP、任务栈水位、设备连接状态
 - SET：光标大小、灵敏度、亮度、音量、息屏时长、密码、RTC 时间
-- LOG：系统日志写入 W25Q64 环形区
-- 息屏：超时自动息屏，按 A 可手动强制息屏
+- LOG：系统日志写入 W25Q64 环形区，支持实时翻页查看全部日志
+- 输入检测：摇杆断开自动识别，桌面左上角显示 `IN YES/NO`
+- 息屏：超时自动息屏，按 A 可手动强制息屏；无音乐息屏进入深睡眠低功耗
 - DS3231：桌面左下角显示年月日时分秒
 
 ## 硬件资源
@@ -39,7 +40,8 @@ FreeRTOS (CMSIS-RTOS2)
   ├─ Sw_Adc_Task   摇杆 DMA 采样/光标队列
   ├─ Log_Task      日志队列 → W25Q64
   ├─ MusicPlay_Task 后台音乐播放
-  └─ App_File_Task  File 应用
+  ├─ App_File_Task  File 应用
+  └─ Screen_Sleep  息屏 tickless 睡眠（覆盖 FreeRTOS 端口函数）
 ```
 
 FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
@@ -51,6 +53,12 @@ FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
 - `BSP_ADC_ReadDual()` 固定返回 `buf[0] = CH0`、`buf[1] = CH1`
 - 不再依赖轮询时序，上电后左右/上下不会随机互换
 
+## 输入设备连接检测
+
+- 摇杆断开检测：X/Y 各取最近 100 次采样平均值，两轴平均值持续偏向左下角（相对校准中心偏移超过 500）判定断开
+- 桌面左上角显示 `IN YES/NO`，Monitor 设备页显示 `JOY OK/FAIL`
+- 断开/恢复各写一次日志：`JOY OFF` / `JOY ON`
+
 ## 息屏与低功耗
 
 息屏有两种入口：
@@ -61,12 +69,21 @@ FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
 息屏后：
 
 - OLED 发送 `DISPLAY OFF`
-- 挂起 `oled`、`Log` 任务
-- `MKey` 扫描周期从 10ms 降为 50ms
-- `Sw_Adc` 采样周期从 30ms 降为 200ms
 - 任意按键或摇杆活动通过 `Screen_Sys_Wake()` 唤醒并恢复任务
 
-> 当前只做任务级降频，尚未进入 MCU Sleep/Stop 模式，CPU 在息屏期间仍在运行。
+### 有音乐息屏
+
+- 挂起 `oled`、`Log` 任务，`MKey` 10ms→50ms，`Sw_Adc` 20ms→200ms
+- 音乐照常播放，不进入睡眠
+
+### 无音乐息屏（深睡眠）
+
+- 除 `MKey`、`Sw_Adc` 外全部任务挂起，两者都改为 200ms 轮询
+- 两者阻塞后，空闲任务通过覆盖 `vPortSuppressTicksAndSleep()` 进入 `WFI` Sleep（tickless idle）
+- 睡眠前 `HAL_SuspendTick()` 停掉 TIM4，醒来后按实际睡眠 tick 补偿 `uwTick` 再 `HAL_ResumeTick()`
+- 唤醒延迟上限 200ms；SysTick 24 位计数限制单次最长睡眠约 233ms
+
+> 注意：CMSIS-RTOS2 的 `SysTick_Handler` 会读 `SysTick->CTRL` 清 COUNTFLAG，tickless 记账必须在放行中断前完成，否则每次睡眠只补 1 个 tick，任务无法准时唤醒。
 
 ## 队列
 
@@ -94,7 +111,8 @@ FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
 ### Draw
 
 - `2/8/4/6` 移动画笔
-- `5` 画点/擦点
+- `C` 切换画笔模式：画点 / 画线 / 区域擦除（光标形状随之变化）
+- `5` 画点模式下切换像素；画线/擦除模式下第一次按键定起点，第二次按键确认
 - `0` 清空画布
 - `#` 保存并命名
 - `D` 在列表删除图片
@@ -115,6 +133,8 @@ FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
 ### Monitor
 
 - 显示系统运行时间、输入事件、丢弃事件、错误、HEAP、任务栈水位
+- 任务列表按任务名排序显示，位置固定
+- 最后一页为设备页：`JOY OK/FAIL`、`IN YES/NO`
 - `4/6` 翻页
 
 ### SET
@@ -125,7 +145,8 @@ FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
 
 ### LOG
 
-- 显示最近日志
+- 显示日志，翻页时实时从 Flash 读取，不再限制 24 条（最多 4758 页）
+- 日志类型：`B` 开机、`S` 设置、`M` 音乐、`A` 应用、`E` 错误、`D` 图片
 - `4/6` 翻页
 
 ## 常用按键
@@ -137,6 +158,7 @@ FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
 | `*` | 返回 |
 | `1` | 音乐暂停/继续 |
 | `A` | 强制息屏（命名/密码/登录页除外） |
+| `C` | Draw 画笔模式切换（画点/画线/区域擦除） |
 | `D` | 删除 |
 | `0` | File 重命名 / Draw 清空 |
 
@@ -157,8 +179,8 @@ build/Debug/test1.elf
 当前编译占用：
 
 ```text
-RAM:   18392 B / 20 KB   (89.80%)
-FLASH: 59572 B / 64 KB   (90.90%)
+RAM:   18336 B / 20 KB   (89.53%)
+FLASH: 65284 B / 64 KB   (99.62%)
 ```
 
-> FLASH 仍有约 4.9KB 余量；继续加功能前建议先评估代码体积。
+> FLASH 仅剩约 252 字节；继续加功能前建议先把应用代码切到 `-Og`/`-Os`。

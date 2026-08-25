@@ -10,6 +10,7 @@
 #include "ImgFile.h"
 #include "Music_App.h"
 #include "Set_App.h"
+#include "Log_App.h"
 #include "NameEdit_App.h"
 #include "Confirm_App.h"
 #include "cmsis_os.h"
@@ -19,10 +20,17 @@
 #include <string.h>
 
 #define DRAW_PAGE_ROWS     6U       //每页显示的图片行数
+#define DRAW_PEN_DOT       0U       //画点模式
+#define DRAW_PEN_LINE      1U       //画线模式
+#define DRAW_PEN_ERASE     2U       //区域擦除模式
 
 static DrawFile_t draw_file;
 static uint8_t draw_used[DRAW_SECTOR_COUNT];
 static uint16_t draw_used_count;
+static uint8_t draw_pen_mode = DRAW_PEN_DOT;
+static uint8_t draw_anchor_pending = 0U;
+static int16_t draw_anchor_x = 0;
+static int16_t draw_anchor_y = 0;
 //@brief:根据索引生成默认图片名称，格式为"IMGxxx"，xxx为三位数字
 static void draw_make_name(uint8_t idx, char *name)
 {
@@ -151,24 +159,224 @@ static void draw_toggle_pixel(int16_t x, int16_t y)
     draw_file.data[idx] ^= (uint8_t)(1U << (y % 8));
 }
 
+static void draw_set_pixel(int16_t x, int16_t y)
+{
+    uint16_t idx;
+
+    if (x < 0 || x >= (int16_t)OLED_WIDTH) return;
+    if (y < 0 || y >= (int16_t)OLED_HEIGHT) return;
+
+    idx = (uint16_t)(y / 8) * OLED_WIDTH + (uint16_t)x;
+    draw_file.data[idx] |= (uint8_t)(1U << (y % 8));
+}
+
+static void draw_clear_pixel(int16_t x, int16_t y)
+{
+    uint16_t idx;
+
+    if (x < 0 || x >= (int16_t)OLED_WIDTH) return;
+    if (y < 0 || y >= (int16_t)OLED_HEIGHT) return;
+
+    idx = (uint16_t)(y / 8) * OLED_WIDTH + (uint16_t)x;
+    draw_file.data[idx] &= (uint8_t)~(1U << (y % 8));
+}
+
+static void draw_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
+{
+    int16_t dx = (x1 > x0) ? (int16_t)(x1 - x0) : (int16_t)(x0 - x1);
+    int16_t dy = (y1 > y0) ? (int16_t)(y1 - y0) : (int16_t)(y0 - y1);
+    int16_t sx = (x0 < x1) ? 1 : -1;
+    int16_t sy = (y0 < y1) ? 1 : -1;
+    int16_t err = (int16_t)(dx - dy);
+
+    for (;;)
+    {
+        draw_set_pixel(x0, y0);
+        if (x0 == x1 && y0 == y1) break;
+
+        int16_t e2 = (int16_t)(err * 2);
+        if (e2 > -dy)
+        {
+            err -= dy;
+            x0 += sx;
+        }
+        if (e2 < dx)
+        {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+static void draw_preview_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
+{
+    int16_t dx = (x1 > x0) ? (int16_t)(x1 - x0) : (int16_t)(x0 - x1);
+    int16_t dy = (y1 > y0) ? (int16_t)(y1 - y0) : (int16_t)(y0 - y1);
+    int16_t sx = (x0 < x1) ? 1 : -1;
+    int16_t sy = (y0 < y1) ? 1 : -1;
+    int16_t err = (int16_t)(dx - dy);
+
+    for (;;)
+    {
+        OLED_DrawPixel((uint8_t)x0, (uint8_t)y0, OLED_WHITE);
+        if (x0 == x1 && y0 == y1) break;
+
+        int16_t e2 = (int16_t)(err * 2);
+        if (e2 > -dy)
+        {
+            err -= dy;
+            x0 += sx;
+        }
+        if (e2 < dx)
+        {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+static void draw_erase_region(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
+{
+    int16_t xa = (x0 < x1) ? x0 : x1;
+    int16_t xb = (x0 < x1) ? x1 : x0;
+    int16_t ya = (y0 < y1) ? y0 : y1;
+    int16_t yb = (y0 < y1) ? y1 : y0;
+
+    for (int16_t y = ya; y <= yb; y++)
+    {
+        for (int16_t x = xa; x <= xb; x++)
+        {
+            draw_clear_pixel(x, y);
+        }
+    }
+}
+
+static void draw_preview_rect(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
+{
+    int16_t xa = (x0 < x1) ? x0 : x1;
+    int16_t xb = (x0 < x1) ? x1 : x0;
+    int16_t ya = (y0 < y1) ? y0 : y1;
+    int16_t yb = (y0 < y1) ? y1 : y0;
+
+    for (int16_t x = xa; x <= xb; x++)
+    {
+        OLED_DrawPixel((uint8_t)x, (uint8_t)ya, OLED_WHITE);
+        OLED_DrawPixel((uint8_t)x, (uint8_t)yb, OLED_WHITE);
+    }
+    for (int16_t y = ya; y <= yb; y++)
+    {
+        OLED_DrawPixel((uint8_t)xa, (uint8_t)y, OLED_WHITE);
+        OLED_DrawPixel((uint8_t)xb, (uint8_t)y, OLED_WHITE);
+    }
+}
+
+static void draw_pen_action(int16_t cx, int16_t cy)
+{
+    if (draw_pen_mode == DRAW_PEN_DOT)
+    {
+        draw_toggle_pixel(cx, cy);
+        return;
+    }
+
+    if (!draw_anchor_pending)
+    {
+        draw_anchor_x = cx;
+        draw_anchor_y = cy;
+        draw_anchor_pending = 1U;
+    }
+    else
+    {
+        if (draw_pen_mode == DRAW_PEN_LINE)
+        {
+            draw_line(draw_anchor_x, draw_anchor_y, cx, cy);
+        }
+        else
+        {
+            draw_erase_region(draw_anchor_x, draw_anchor_y, cx, cy);
+        }
+        draw_anchor_pending = 0U;
+    }
+}
+
 static void draw_edit_render(int16_t cx, int16_t cy)
 {
     int16_t x = cx, y = cy;
     uint8_t cs = Set_Sys_GetCursorPixels();
 
     if (x < 0) x = 0;
-    if (x > (int16_t)(OLED_WIDTH - cs)) x = (int16_t)(OLED_WIDTH - cs);
     if (y < 0) y = 0;
-    if (y > (int16_t)(OLED_HEIGHT - cs)) y = (int16_t)(OLED_HEIGHT - cs);
+    if (draw_pen_mode == DRAW_PEN_DOT)
+    {
+        if (x > (int16_t)(OLED_WIDTH - cs)) x = (int16_t)(OLED_WIDTH - cs);
+        if (y > (int16_t)(OLED_HEIGHT - cs)) y = (int16_t)(OLED_HEIGHT - cs);
+    }
+    else
+    {
+        if (x > (int16_t)(OLED_WIDTH - 1)) x = (int16_t)(OLED_WIDTH - 1);
+        if (y > (int16_t)(OLED_HEIGHT - 1)) y = (int16_t)(OLED_HEIGHT - 1);
+    }
 
     OLED_Blit(draw_file.data);
-    for (uint8_t yy = 0U; yy < cs; yy++)
+
+    if (draw_anchor_pending)
     {
-        for (uint8_t xx = 0U; xx < cs; xx++)
+        if (draw_pen_mode == DRAW_PEN_LINE)
         {
-            OLED_DrawPixel((uint8_t)(x + xx), (uint8_t)(y + yy), OLED_WHITE);
+            draw_preview_line(draw_anchor_x, draw_anchor_y, x, y);
+            OLED_DrawPixel((uint8_t)draw_anchor_x, (uint8_t)draw_anchor_y, OLED_WHITE);
+        }
+        else
+        {
+            draw_preview_rect(draw_anchor_x, draw_anchor_y, x, y);
         }
     }
+
+    if (draw_pen_mode == DRAW_PEN_LINE)
+    {
+        /* 画线模式：十字准星光标 */
+        int16_t arm = (cs > 1U) ? (int16_t)cs : 1;
+
+        for (int16_t i = -arm; i <= arm; i++)
+        {
+            if (x + i >= 0 && x + i < (int16_t)OLED_WIDTH)
+                OLED_DrawPixel((uint8_t)(x + i), (uint8_t)y, OLED_WHITE);
+            if (y + i >= 0 && y + i < (int16_t)OLED_HEIGHT)
+                OLED_DrawPixel((uint8_t)x, (uint8_t)(y + i), OLED_WHITE);
+        }
+    }
+    else if (draw_pen_mode == DRAW_PEN_ERASE)
+    {
+        /* 区域擦除模式：空心方框光标 */
+        int16_t s = (cs > 1U) ? (int16_t)cs : 3;
+
+        for (int16_t i = 0; i < s; i++)
+        {
+            if (x + i >= 0 && x + i < (int16_t)OLED_WIDTH)
+            {
+                OLED_DrawPixel((uint8_t)(x + i), (uint8_t)y, OLED_WHITE);
+                OLED_DrawPixel((uint8_t)(x + i), (uint8_t)(y + s - 1), OLED_WHITE);
+            }
+            if (y + i >= 0 && y + i < (int16_t)OLED_HEIGHT)
+            {
+                OLED_DrawPixel((uint8_t)x, (uint8_t)(y + i), OLED_WHITE);
+                OLED_DrawPixel((uint8_t)(x + s - 1), (uint8_t)(y + i), OLED_WHITE);
+            }
+        }
+    }
+    else
+    {
+        for (uint8_t yy = 0U; yy < cs; yy++)
+        {
+            for (uint8_t xx = 0U; xx < cs; xx++)
+            {
+                OLED_DrawPixel((uint8_t)(x + xx), (uint8_t)(y + yy), OLED_WHITE);
+            }
+        }
+    }
+
+    OLED_PrintStringColor(0, 56,
+        (draw_pen_mode == DRAW_PEN_LINE) ? "LINE" :
+        (draw_pen_mode == DRAW_PEN_ERASE) ? "ERASE" : "DOT ", OLED_WHITE);
     OLED_Display();
 }
 
@@ -192,6 +400,9 @@ static void draw_edit(uint8_t idx, uint8_t is_new)
     uint8_t joy_synced = 0U;
     uint8_t keypad_used = 0U;
     char key;
+
+    draw_pen_mode = DRAW_PEN_DOT;
+    draw_anchor_pending = 0U;
 
     for (;;)
     {
@@ -227,7 +438,7 @@ static void draw_edit(uint8_t idx, uint8_t is_new)
 
             if (msg.button_pressed != 0U && prev_button == 0U)
             {
-                draw_toggle_pixel(cx, cy);
+                draw_pen_action(cx, cy);
             }
             prev_button = (msg.button_pressed != 0U) ? 1U : 0U;
         }
@@ -253,16 +464,38 @@ static void draw_edit(uint8_t idx, uint8_t is_new)
                     cx = (cx + 1 < (int16_t)OLED_WIDTH) ? (int16_t)(cx + 1) : (int16_t)(OLED_WIDTH - 1);
                     break;
                 case '5':
-                    draw_toggle_pixel(cx, cy);
+                    draw_pen_action(cx, cy);
                     break;
                 case '0':
                     memset(draw_file.data, 0, OLED_BUFFER_SIZE);
+                    draw_anchor_pending = 0U;
+                    break;
+                case 'C':
+                    draw_pen_mode = (uint8_t)((draw_pen_mode + 1U) % 3U);
+                    draw_anchor_pending = 0U;
                     break;
                 case '#':
-                    if (NameEdit_Run(draw_file.name, (uint8_t)sizeof(draw_file.name), !is_new, Draw_NameUsed))
                     {
-                        draw_save(idx);
-                        return;
+                        char old_name[sizeof(draw_file.name)];
+
+                        memcpy(old_name, draw_file.name, sizeof(old_name));
+                        if (NameEdit_Run(draw_file.name, (uint8_t)sizeof(draw_file.name), !is_new, Draw_NameUsed))
+                        {
+                            draw_save(idx);
+                            if (is_new)
+                            {
+                                Log_Write(LOG_TYPE_DRAW, "NEW");
+                            }
+                            else if (strcmp(old_name, draw_file.name) != 0)
+                            {
+                                Log_Write(LOG_TYPE_DRAW, "RENAMED");
+                            }
+                            else
+                            {
+                                Log_Write(LOG_TYPE_DRAW, "MODIFIED");
+                            }
+                            return;
+                        }
                     }
                     break;
                 case '1':
@@ -394,6 +627,7 @@ static void draw_selection(void)
                     if (Confirm_Delete(name))
                     {
                         SFlash_EraseSector(DRAW_SECTOR_BASE + idx);
+                        Log_Write(LOG_TYPE_DRAW, "DELETED");
                     }
                 }
                 break;
