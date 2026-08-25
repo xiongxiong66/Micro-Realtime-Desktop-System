@@ -12,6 +12,7 @@
 
 #define MKEY_SCAN_PERIOD_MS       10U
 #define MKEY_SCAN_PERIOD_SLEEP_MS 50U
+#define MKEY_SCAN_PERIOD_DEEP_MS  300U
 
 volatile uint32_t mkey_events = 0U;
 volatile uint32_t mkey_dropped = 0U;
@@ -40,6 +41,8 @@ void MKey_Task_Sys(void)
             }
         }
 
-        osDelay(Screen_Sys_IsOff() ? MKEY_SCAN_PERIOD_SLEEP_MS : MKEY_SCAN_PERIOD_MS);
+        osDelay(Screen_Sys_IsOff() ?
+                (Screen_Sys_IsDeepOff() ? MKEY_SCAN_PERIOD_DEEP_MS : MKEY_SCAN_PERIOD_SLEEP_MS) :
+                MKEY_SCAN_PERIOD_MS);
     }
 }

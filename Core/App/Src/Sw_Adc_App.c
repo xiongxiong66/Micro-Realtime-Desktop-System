@@ -7,6 +7,7 @@
 
 #define SW_ADC_PERIOD_MS       20U
 #define SW_ADC_PERIOD_SLEEP_MS 200U
+#define SW_ADC_PERIOD_DEEP_MS  300U
 
 extern osMessageQueueId_t cursorHandle;
 
@@ -191,6 +192,8 @@ void Sw_Adc_Task_Sys() {
             adc_dropped++;
         }
     }
-    osDelay(Screen_Sys_IsOff() ? SW_ADC_PERIOD_SLEEP_MS : SW_ADC_PERIOD_MS);
+    osDelay(Screen_Sys_IsOff() ?
+            (Screen_Sys_IsDeepOff() ? SW_ADC_PERIOD_DEEP_MS : SW_ADC_PERIOD_SLEEP_MS) :
+            SW_ADC_PERIOD_MS);
   }
 }
