@@ -1,4 +1,5 @@
 #include "Sw_Adc_App.h"
+#include "TaskWatch.h"
 #include "InputDev_App.h"
 #include "Set_App.h"
 #include "Screen_App.h"
@@ -89,6 +90,8 @@ void Sw_Adc_Task_Sys() {
 
   for (;;)
   {
+    TaskWatch_Beat(TASKWATCH_ADC);
+
     if (state != prev_state)
     {
       if (state == Statue_Yes)

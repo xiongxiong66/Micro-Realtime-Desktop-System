@@ -7,6 +7,7 @@
 
 #include "Monitor_App.h"
 #include "InputDev_App.h"
+#include "TaskWatch.h"
 #include "Oled_App.h"
 #include "Sw_Adc_App.h"
 #include "MKey_App.h"
@@ -187,6 +188,18 @@ static void Monitor_DrawDevices(uint8_t page, uint8_t pages)
     OLED_SetCursor(0, 24);
     OLED_PrintString("IN ");
     OLED_PrintString(InputDev_IsConnected() ? "YES" : "NO");
+
+    OLED_SetCursor(0, 32);
+    OLED_PrintString("MKey ");
+    OLED_PrintString(TaskWatch_IsOk(TASKWATCH_MKEY) ? "OK" : "HANG");
+
+    OLED_SetCursor(0, 40);
+    OLED_PrintString("Adc ");
+    OLED_PrintString(TaskWatch_IsOk(TASKWATCH_ADC) ? "OK" : "HANG");
+
+    OLED_SetCursor(0, 48);
+    OLED_PrintString("Log ");
+    OLED_PrintString(TaskWatch_IsOk(TASKWATCH_LOG) ? "OK" : "HANG");
 
     Monitor_DrawFooter();
     OLED_Display();

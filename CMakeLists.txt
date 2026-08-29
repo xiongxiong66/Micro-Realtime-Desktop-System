@@ -41,6 +41,9 @@ add_subdirectory(cmake/stm32cubemx)
 # RTOS library so the build still fits in the 64KB flash.
 target_compile_options(FreeRTOS PRIVATE -Os)
 
+# Application code: shrink flash size; keep -g3 debug info.
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -Os)
+
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
@@ -61,6 +64,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/App/Src/Oled_App.c
     Core/App/Src/InputDev_App.c
     Core/App/Src/Screen_Sleep.c
+    Core/App/Src/TaskErr.c
+    Core/App/Src/TaskWatch.c
     Core/App/Src/Sw_Adc_App.c
     Core/App/Src/MKey_App.c
     Core/App/Src/NameEdit_App.c

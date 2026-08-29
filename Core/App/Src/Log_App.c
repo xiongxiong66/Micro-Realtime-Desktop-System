@@ -6,6 +6,8 @@
   */
 
 #include "Log_App.h"
+#include "TaskWatch.h"
+#include "TaskErr.h"
 #include "Oled_App.h"
 #include "Music_App.h"
 #include "Set_App.h"
@@ -349,11 +351,15 @@ void Log_Task_Sys(void)
     uint32_t last_header = HAL_GetTick();
 
     Log_Init();
+    TaskErr_Init();
     Log_Write(LOG_TYPE_BOOT, "BOOT OK");
     Log_Write(LOG_TYPE_SETTING, Set_Sys_LoadValid() ? "SET LOAD OK" : "SET LOAD FAIL");
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_LOG);
+        TaskWatch_Check();
+
         if (osMessageQueueGet(LogQueueHandle, &msg, NULL, 100U) == osOK)
         {
             Log_Append(&msg);

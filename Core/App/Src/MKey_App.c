@@ -6,6 +6,7 @@
   */
 
 #include "MKey_App.h"
+#include "TaskWatch.h"
 #include "mkey.h"
 #include "keypad.h"
 #include "Screen_App.h"
@@ -25,6 +26,9 @@ void MKey_Task_Sys(void)
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_MKEY);
+        TaskWatch_Check();
+
         Screen_Sys_Update();
 
         if (MKey_GetKeyEvent(&key) == MKEY_OK)
