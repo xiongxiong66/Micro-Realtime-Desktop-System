@@ -40,10 +40,6 @@ uint8_t NameEdit_Run(char *name, uint8_t max_len, uint8_t prefill,
         OLED_SetCursor(0, 16);
         OLED_PrintString(buf);
         OLED_PrintChar('_');
-        OLED_SetCursor(0, 48);
-        OLED_PrintString("#:OK  *:DEL");
-        OLED_SetCursor(0, 56);
-        OLED_PrintString("empty+*:back");
         OLED_Display();
 
         if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)

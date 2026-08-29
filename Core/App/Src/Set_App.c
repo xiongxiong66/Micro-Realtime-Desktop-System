@@ -253,8 +253,6 @@ static void Set_RtcRender(uint8_t sel, const DS3231_Time_t *t)
         OLED_PrintNum((uint32_t)vals[i], 10);
     }
 
-    OLED_SetCursor(0, 56);
-    OLED_PrintString("#:SAVE *:BACK");
     OLED_Display();
 }
 
@@ -363,8 +361,6 @@ static void Set_Render(uint8_t page, uint8_t sel)
         OLED_PrintNum((uint32_t)(10U + (uint32_t)g_set_config.screen_timeout * 5U), 10);
         OLED_PrintString("s");
 
-        OLED_SetCursor(0, 48);
-        OLED_PrintString("8:PASS >");
     }
     else
     {
@@ -376,12 +372,7 @@ static void Set_Render(uint8_t page, uint8_t sel)
         OLED_PrintString(sel == 1U ? ">" : " ");
         OLED_PrintString("TIME");
 
-        OLED_SetCursor(0, 48);
-        OLED_PrintString("2:BACK");
     }
-
-    OLED_SetCursor(0, 56);
-    OLED_PrintString("4/6:CHG *:BACK");
     OLED_Display();
 }
 
@@ -428,8 +419,6 @@ static uint8_t Set_EnterPin(char *buf, uint8_t max_len, const char *title)
         OLED_SetCursor(0, 16);
         OLED_PrintString(buf);
         OLED_PrintChar('_');
-        OLED_SetCursor(0, 56);
-        OLED_PrintString("#:OK *:DEL");
         OLED_Display();
 
         if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)

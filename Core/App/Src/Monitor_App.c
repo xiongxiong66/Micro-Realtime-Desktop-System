@@ -103,8 +103,6 @@ static void Monitor_DrawHeader(uint8_t page, uint8_t pages)
 
 static void Monitor_DrawFooter(void)
 {
-    OLED_SetCursor(0, 56);
-    OLED_PrintString("4/6:PG *:BACK");
 }
 
 static void Monitor_DrawSummary(uint8_t page, uint8_t pages, UBaseType_t task_count)

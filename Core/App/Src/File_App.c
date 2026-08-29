@@ -138,8 +138,6 @@ static void file_pic_render(uint8_t page, uint8_t sel)
         }
     }
 
-    OLED_SetCursor(0, 48);
-    OLED_PrintString("#:VIEW 0:REN");
     OLED_SetCursor(0, 56);
     OLED_PrintString("< ");
     OLED_PrintNum((uint32_t)page + 1U, 10);
@@ -185,8 +183,6 @@ static void file_music_render(uint8_t page, uint8_t sel)
         }
     }
 
-    OLED_SetCursor(0, 48);
-    OLED_PrintString("#:PLAY 0:REN D:DEL");
     OLED_SetCursor(0, 56);
     OLED_PrintString("< ");
     OLED_PrintNum((uint32_t)page + 1U, 10);
@@ -420,8 +416,6 @@ static void file_main_menu_render(uint8_t sel)
     OLED_PrintString(sel == 0U ? "> MUSIC" : "  MUSIC");
     OLED_SetCursor(0, 24);
     OLED_PrintString(sel == 1U ? "> PICTURE" : "  PICTURE");
-    OLED_SetCursor(0, 56);
-    OLED_PrintString("#:OK  *:BACK");
     OLED_Display();
 }
 

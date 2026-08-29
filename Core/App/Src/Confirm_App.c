@@ -45,8 +45,6 @@ uint8_t Confirm_Delete(const char *name)
         OLED_SetCursor(70, 40);
         if (sel == 1U) OLED_PrintString("> ");
         OLED_PrintString("No");
-        OLED_SetCursor(0, 56);
-        OLED_PrintString("4/6:#:OK *:BACK");
         OLED_Display();
 
         if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)

@@ -412,8 +412,6 @@ static void Log_Render(uint16_t page, uint16_t pages)
         }
     }
 
-    OLED_SetCursor(0, 56);
-    OLED_PrintString("4/6:PG *:BACK");
     OLED_Display();
 }
 

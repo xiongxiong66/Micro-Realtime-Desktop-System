@@ -142,12 +142,6 @@ static void music_render(uint8_t page, uint8_t sel)
         }
     }
 
-    if (music_used_count > 0U)
-    {
-        OLED_SetCursor(0, 48);
-        OLED_PrintString("0:REN D:DEL");
-    }
-
     OLED_SetCursor(0, 56);
     OLED_PrintString("< ");
     OLED_PrintNum((uint32_t)page + 1U, 10);
@@ -224,8 +218,6 @@ static void Music_Play_Render(const char *name)
     OLED_PrintString("s / ");
     OLED_PrintNum(Music_Bg_GetTotalMs() / 1000U, 10);
     OLED_PrintString("s");
-    OLED_SetCursor(0, 56);
-    OLED_PrintString(Music_Bg_IsPlaying() ? "1:PAUSE *:BACK" : "1:PLAY *:BACK");
     OLED_Display();
 }
 
