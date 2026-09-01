@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 
+uint8_t Confirm_Ask(const char *title);
 uint8_t Confirm_Delete(const char *name);
 
 #endif /* __CONFIRM_SYS_H */

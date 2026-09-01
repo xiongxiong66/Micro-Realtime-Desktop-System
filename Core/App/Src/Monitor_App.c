@@ -48,6 +48,11 @@ void Monitor_Sys_ReportError(void)
     monitor_error_count++;
 }
 
+uint32_t Monitor_Sys_GetErrorCount(void)
+{
+    return monitor_error_count;
+}
+
 static void Monitor_PrintName(const char *name)
 {
     uint8_t n = 0U;

@@ -66,6 +66,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/App/Src/Screen_Sleep.c
     Core/App/Src/TaskErr.c
     Core/App/Src/TaskWatch.c
+    Core/App/Src/Watchdog_App.c
     Core/App/Src/Sw_Adc_App.c
     Core/App/Src/MKey_App.c
     Core/App/Src/NameEdit_App.c

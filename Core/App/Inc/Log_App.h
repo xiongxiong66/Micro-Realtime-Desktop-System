@@ -28,5 +28,7 @@ extern osMessageQueueId_t LogQueueHandle;
 void Log_Write(uint8_t type, const char *text);
 void Log_View_Run(void);
 void Log_Task_Sys(void);
+uint8_t Log_Clear(void);
+uint8_t Log_IsClearing(void);
 
 #endif /* __LOG_SYS_H */

@@ -27,7 +27,6 @@ void MKey_Task_Sys(void)
     for (;;)
     {
         TaskWatch_Beat(TASKWATCH_MKEY);
-        TaskWatch_Check();
 
         Screen_Sys_Update();
 

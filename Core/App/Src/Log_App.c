@@ -6,6 +6,9 @@
   */
 
 #include "Log_App.h"
+#include "Confirm_App.h"
+#include "Monitor_App.h"
+#include "Screen_App.h"
 #include "TaskWatch.h"
 #include "TaskErr.h"
 #include "Oled_App.h"
@@ -27,6 +30,7 @@
 #define LOG_QUEUE_DEPTH        8U
 #define LOG_FLUSH_ENTRIES      8U
 #define LOG_PAGE_ROWS          6U
+#define LOG_TYPE_CLEAR         0xFFU
 
 typedef struct __attribute__((packed)) {
     uint32_t magic;
@@ -63,6 +67,7 @@ static uint8_t log_ready;
 static LogView_t log_page[LOG_PAGE_ROWS];
 static uint8_t log_page_count;
 static uint32_t log_total_count;
+static volatile uint8_t log_clear_done;
 
 static uint8_t Log_EntryChecksum(const LogEntry_t *entry)
 {
@@ -141,6 +146,8 @@ static void Log_CountEntries(void)
                 count++;
             }
         }
+        TaskWatch_Beat(TASKWATCH_LOG);
+        osDelay(1U);
     }
     log_total_count = count;
 }
@@ -151,16 +158,25 @@ static void Log_ReadPage(uint32_t page)
     uint32_t limit = log_cur_offset / LOG_ENTRY_SIZE;
     uint32_t skip = page * LOG_PAGE_ROWS;
     uint32_t scanned = 0U;
+    uint32_t budget = log_total_count;
     uint8_t got = 0U;
+
+    if (log_total_count == 0U)
+    {
+        log_page_count = 0U;
+        return;
+    }
 
     if (limit > LOG_ENTRIES_PER_SECTOR) limit = LOG_ENTRIES_PER_SECTOR;
 
-    while (scanned < LOG_DATA_SECTORS && got < LOG_PAGE_ROWS)
+    while (scanned < LOG_DATA_SECTORS && got < LOG_PAGE_ROWS && budget > 0U)
     {
-        for (uint32_t i = limit; i > 0U && got < LOG_PAGE_ROWS; i--)
+        for (uint32_t i = limit; i > 0U && got < LOG_PAGE_ROWS && budget > 0U; i--)
         {
             LogEntry_t e;
             uint32_t addr = s * SFLASH_SECTOR_SIZE + (i - 1U) * LOG_ENTRY_SIZE;
+
+            budget--;
 
             /* 未刷入 Flash 或已擦除的槽位无效，跳过继续往前找 */
             if (SFlash_Read(addr, (uint8_t *)&e, LOG_ENTRY_SIZE) != SFLASH_OK
@@ -220,6 +236,8 @@ static void Log_Scan(void)
                 log_cur_offset = (i + 1U) * LOG_ENTRY_SIZE;
             }
         }
+        TaskWatch_Beat(TASKWATCH_LOG);
+        osDelay(1U);
     }
 
     if (max_seq == 0U)
@@ -256,11 +274,25 @@ static void Log_Init(void)
     if (SFlash_Read(addr, (uint8_t *)&h, sizeof(h)) == SFLASH_OK
      && Log_HeaderValid(&h))
     {
+        LogEntry_t probe;
+        uint32_t probe_addr;
+
         log_next_seq = h.next_seq;
         log_cur_sector = h.cur_sector;
         log_cur_offset = h.cur_offset;
         log_total_count = h.total;
         if (log_total_count == 0U && h.next_seq > 1U) Log_CountEntries();
+        else if (log_total_count > 0U && log_cur_offset > 0U)
+        {
+            /* 头部指向的尾部无效说明上次写入/清空被中断，重新扫描重建状态 */
+            probe_addr = log_cur_sector * SFLASH_SECTOR_SIZE
+                       + log_cur_offset - LOG_ENTRY_SIZE;
+            if (SFlash_Read(probe_addr, (uint8_t *)&probe, LOG_ENTRY_SIZE) != SFLASH_OK
+             || !Log_EntryValid(&probe))
+            {
+                Log_Scan();
+            }
+        }
         log_ready = 1U;
         return;
     }
@@ -292,6 +324,60 @@ static void Log_Flush(void)
          + log_cur_offset - (uint32_t)log_flush_count * LOG_ENTRY_SIZE;
     (void)SFlash_Write(addr, log_flush_buf, (uint32_t)log_flush_count * LOG_ENTRY_SIZE);
     log_flush_count = 0U;
+}
+
+static void Log_EraseAll(void)
+{
+    uint8_t failed = 0U;
+    uint8_t head[LOG_ENTRY_SIZE];
+    uint8_t used;
+    uint8_t i;
+
+    /* 先把头部写成空日志，清空过程被中断也不会留下旧 total 导致下次全盘扫描 */
+    log_flush_count = 0U;
+    log_next_seq = 1U;
+    log_cur_sector = LOG_DATA_BASE;
+    log_cur_offset = 0U;
+    log_total_count = 0U;
+    log_ready = 1U;
+    Log_SaveHeader();
+
+    for (uint32_t s = LOG_DATA_BASE; s < LOG_DATA_BASE + LOG_DATA_SECTORS; s++)
+    {
+        used = 0U;
+        if (SFlash_Read((uint32_t)s * SFLASH_SECTOR_SIZE, head, sizeof(head)) == SFLASH_OK)
+        {
+            for (i = 0U; i < sizeof(head); i++)
+            {
+                if (head[i] != 0xFFU)
+                {
+                    used = 1U;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            failed = 1U;
+        }
+
+        if (used != 0U && SFlash_EraseSector(s) != SFLASH_OK)
+        {
+            failed = 1U;
+        }
+
+        TaskWatch_Beat(TASKWATCH_LOG);
+        osDelay(1U);
+    }
+
+    Log_SaveHeader();
+    log_clear_done = 1U;
+
+    if (failed != 0U)
+    {
+        Monitor_Sys_ReportError();
+        Log_Write(LOG_TYPE_ERROR, "LOG CLEAR ERR");
+    }
 }
 
 static void Log_Append(const LogMsg_t *msg)
@@ -344,6 +430,30 @@ void Log_Write(uint8_t type, const char *text)
     (void)osMessageQueuePut(LogQueueHandle, &msg, 0U, 0U);
 }
 
+uint8_t Log_Clear(void)
+{
+    LogMsg_t msg;
+
+    if (LogQueueHandle == NULL) return 0U;
+
+    log_clear_done = 0U;
+    msg.type = LOG_TYPE_CLEAR;
+    memset(msg.text, 0, sizeof(msg.text));
+
+    if (osMessageQueuePut(LogQueueHandle, &msg, 0U, 1000U) != osOK)
+    {
+        log_clear_done = 1U;
+        return 0U;
+    }
+
+    return 1U;
+}
+
+uint8_t Log_IsClearing(void)
+{
+    return (log_clear_done == 0U) ? 1U : 0U;
+}
+
 void Log_Task_Sys(void)
 {
     LogMsg_t msg;
@@ -358,11 +468,17 @@ void Log_Task_Sys(void)
     for (;;)
     {
         TaskWatch_Beat(TASKWATCH_LOG);
-        TaskWatch_Check();
 
         if (osMessageQueueGet(LogQueueHandle, &msg, NULL, 100U) == osOK)
         {
-            Log_Append(&msg);
+            if (msg.type == LOG_TYPE_CLEAR)
+            {
+                Log_EraseAll();
+            }
+            else
+            {
+                Log_Append(&msg);
+            }
         }
 
         if ((HAL_GetTick() - last_flush) >= 1000U)
@@ -425,10 +541,34 @@ void Log_View_Run(void)
 {
     uint16_t page = 0U;
     char key;
+    uint8_t clearing = 0U;
 
     for (;;)
     {
         uint16_t pages = (uint16_t)((log_total_count + LOG_PAGE_ROWS - 1U) / LOG_PAGE_ROWS);
+
+        if (clearing != 0U)
+        {
+            if (Log_IsClearing())
+            {
+                OLED_Clear();
+                OLED_SetCursor(0, 8);
+                OLED_PrintString("Clearing...");
+                OLED_Display();
+                Screen_Sys_Wake();
+                osDelay(100U);
+                continue;
+            }
+
+            clearing = 0U;
+            page = 0U;
+            OLED_Clear();
+            OLED_SetCursor(16, 28);
+            OLED_PrintString("CLEARED");
+            OLED_Display();
+            osDelay(300U);
+        }
+
         if (pages == 0U) pages = 1U;
         if (page >= pages) page = (uint16_t)(pages - 1U);
 
@@ -442,6 +582,13 @@ void Log_View_Run(void)
 
         if (key == '*') return;
         else if (key == '1') Music_Bg_Toggle();
+        else if (key == '0')
+        {
+            if (Confirm_Ask("Clear Logs") && Log_Clear())
+            {
+                clearing = 1U;
+            }
+        }
         else if (key == '4')
         {
             if (page > 0U) page--;

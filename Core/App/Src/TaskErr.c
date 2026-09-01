@@ -11,6 +11,7 @@
 #include "task.h"
 #include "main.h"
 #include "sflash.h"
+#include "w25q64.h"
 #include <string.h>
 
 #define TASK_ERR_SECTOR      1U    /* W25Q64 预留扇区，不占用户数据 */
@@ -40,7 +41,7 @@ static void task_err_store(uint8_t type, const char *name)
     /* SPI 片选被占用说明 Log 任务正在写 Flash，跳过写入直接复位 */
     if (HAL_GPIO_ReadPin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin) == GPIO_PIN_SET)
     {
-        (void)SFlash_Write(addr, task_err_record, sizeof(task_err_record));
+        (void)BSP_W25Q64_Write(addr, task_err_record, sizeof(task_err_record));
     }
 
     NVIC_SystemReset();
@@ -63,7 +64,7 @@ void TaskErr_Init(void)
     uint32_t addr = (uint32_t)TASK_ERR_SECTOR * SFLASH_SECTOR_SIZE;
     char text[LOG_TEXT_LEN];
 
-    if (SFlash_Read(addr, buf, sizeof(buf)) != SFLASH_OK) return;
+    if (BSP_W25Q64_Read(addr, buf, sizeof(buf)) != BSP_W25Q64_OK) return;
 
     if (buf[0] != (uint8_t)(TASK_ERR_MAGIC & 0xFFU) ||
         buf[1] != (uint8_t)((TASK_ERR_MAGIC >> 8U) & 0xFFU) ||
@@ -88,6 +89,6 @@ void TaskErr_Init(void)
         strncpy(text, "MALLOC FAIL", LOG_TEXT_LEN - 1U);
     }
 
-    (void)SFlash_EraseSector(TASK_ERR_SECTOR);
+    (void)BSP_W25Q64_EraseSector(addr);
     Log_Write(LOG_TYPE_ERROR, text);
 }

@@ -548,6 +548,12 @@ static void draw_new(void)
     draw_edit(idx, 1U);
 }
 
+void Draw_App_New(void)
+{
+    draw_scan();
+    draw_new();
+}
+
 static void draw_selection(void)
 {
     uint8_t page = 0U;

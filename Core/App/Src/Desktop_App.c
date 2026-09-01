@@ -30,6 +30,10 @@
 #define DESKTOP_CELL_H_IN   22U
 
 #define DESKTOP_CORNER_SIZE 4U
+#define DESKTOP_ERR_BLINK_MS 4000U
+
+static uint32_t desk_err_count = 0U;
+static uint32_t desk_err_blink_until = 0U;
 
 typedef enum {
     APP_FILE = 0,
@@ -92,6 +96,28 @@ static void Desktop_Draw(const CursorMsg_t *cur, AppId_t sel)
     OLED_Clear();
 
     OLED_PrintStringColor(0, 0, InputDev_IsConnected() ? "IN YES" : "IN NO", OLED_WHITE);
+
+    {
+        uint32_t err = Monitor_Sys_GetErrorCount();
+        uint8_t show = 1U;
+
+        if (err != desk_err_count)
+        {
+            desk_err_count = err;
+            desk_err_blink_until = HAL_GetTick() + DESKTOP_ERR_BLINK_MS;
+        }
+        if (show != 0U && HAL_GetTick() < desk_err_blink_until
+         && ((HAL_GetTick() / 500U) & 1U) != 0U)
+        {
+            show = 0U;
+        }
+        if (show != 0U)
+        {
+            OLED_SetCursor(50, 0);
+            OLED_PrintString("ERR ");
+            OLED_PrintNum(err, 10);
+        }
+    }
 
     OLED_FillRect(98, 0, 28, 8, OLED_BLACK);
     OLED_PrintStringColor(100, 0, Music_Bg_IsPlaying() ? "||" : "|>", OLED_WHITE);

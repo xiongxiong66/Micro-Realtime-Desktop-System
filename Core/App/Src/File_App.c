@@ -138,6 +138,17 @@ static void file_pic_render(uint8_t page, uint8_t sel)
         }
     }
 
+    if (sel == used_on_page)
+    {
+        OLED_SetCursor(0U, 48U);
+        OLED_PrintString(">>NEW");
+    }
+    else
+    {
+        OLED_SetCursor(0U, 48U);
+        OLED_PrintString("NEW");
+    }
+
     OLED_SetCursor(0, 56);
     OLED_PrintString("< ");
     OLED_PrintNum((uint32_t)page + 1U, 10);
@@ -262,11 +273,10 @@ static void file_picture_menu(void)
         {
             case '2':
                 sel = (sel > 0U) ? (uint8_t)(sel - 1U)
-                     : ((used_on_page > 0U) ? (uint8_t)(used_on_page - 1U) : 0U);
+                     : used_on_page;
                 break;
             case '8':
-                sel = (used_on_page > 0U && sel + 1U < used_on_page)
-                    ? (uint8_t)(sel + 1U) : 0U;
+                sel = (sel < used_on_page) ? (uint8_t)(sel + 1U) : 0U;
                 break;
             case '4':
                 if (page > 0U)
@@ -283,7 +293,12 @@ static void file_picture_menu(void)
                 }
                 break;
             case '#':
-                if (sel < used_on_page)
+                if (sel == used_on_page)
+                {
+                    Draw_App_New();
+                    file_scan_pictures();
+                }
+                else if (sel < used_on_page)
                 {
                     uint8_t idx = file_pic_idx[n + sel];
                     if (SFlash_LoadSector(DRAW_SECTOR_BASE + idx, (uint8_t *)&file_draw, sizeof(DrawFile_t)) == SFLASH_OK)

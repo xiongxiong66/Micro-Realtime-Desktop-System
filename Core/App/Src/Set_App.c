@@ -178,7 +178,7 @@ void Set_Sys_ApplyBrightness(void)
 
 void Set_Sys_ApplyVolume(void)
 {
-    Buzzer_SetVolumePermille((uint16_t)(g_set_config.volume * 5U));
+    Buzzer_SetVolumePermille((uint16_t)(((uint32_t)g_set_config.volume * 500U) / 9U));
 }
 
 uint8_t Set_Sys_GetCursorSize(void)
@@ -387,7 +387,7 @@ static void Set_Change(uint8_t sel, int8_t dir)
 
     if (sel >= 5U) return;
 
-    max_level = (sel == 3U) ? 9U : (sel == 4U) ? 5U : SETTINGS_LEVELS;
+    max_level = (sel == 3U) ? 10U : (sel == 4U) ? 5U : SETTINGS_LEVELS;
     if (dir > 0)
     {
         *value = (*value + 1U < max_level) ? (uint8_t)(*value + 1U) : 0U;

@@ -7,6 +7,7 @@
 
 #include "Music_App.h"
 #include "Oled_App.h"
+#include "Set_App.h"
 #include "MusicFile.h"
 #include "NameEdit_App.h"
 #include "Confirm_App.h"
@@ -258,6 +259,7 @@ void Music_Play(uint8_t idx)
 void Music_Play_Task_Sys(void)
 {
     Buzzer_Init();
+    Set_Sys_ApplyVolume();
 
     for (;;)
     {

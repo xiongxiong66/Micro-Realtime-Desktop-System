@@ -39,7 +39,11 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+const osThreadAttr_t Watchdog_attributes = {
+  .name = "Watchdog",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 
 /* USER CODE END PTD */
 
@@ -129,7 +133,7 @@ const osMessageQueueAttr_t LogQueue_attributes = {
   .name = "LogQueue"
 };
 /* USER CODE BEGIN PV */
-
+osThreadId_t WatchdogHandle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -150,7 +154,7 @@ void App_File_Task(void *argument);
 void MusicPlay_Task(void *argument);
 
 /* USER CODE BEGIN PFP */
-
+void Watchdog_Task(void *argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -255,7 +259,8 @@ int main(void)
   MusicPlayHandle = osThreadNew(MusicPlay_Task, NULL, &MusicPlay_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+  /* creation of Watchdog */
+  WatchdogHandle = osThreadNew(Watchdog_Task, NULL, &Watchdog_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
