@@ -7,6 +7,7 @@
 
 #include "File_App.h"
 #include "Oled_App.h"
+#include "Log_App.h"
 #include "ImgFile.h"
 #include "MusicFile.h"
 #include "Music_App.h"
@@ -45,6 +46,63 @@ static void file_load_pic_name(uint8_t idx, char *name)
         if (name[i] == '\0') break;
     }
     name[i] = '\0';
+}
+
+static void file_make_pic_name(uint8_t idx, char *name)
+{
+    name[0] = 'I';
+    name[1] = 'M';
+    name[2] = 'G';
+    name[3] = (char)('0' + (idx / 100U) % 10U);
+    name[4] = (char)('0' + (idx / 10U) % 10U);
+    name[5] = (char)('0' + idx % 10U);
+    name[6] = '\0';
+}
+
+static void file_new_picture(void)
+{
+    uint8_t idx = 0xFFU;
+    uint16_t i, k;
+
+    for (i = 0U; i < DRAW_SECTOR_COUNT; i++)
+    {
+        uint8_t found = 0U;
+        for (k = 0U; k < file_pic_count; k++)
+        {
+            if (file_pic_idx[k] == (uint8_t)i)
+            {
+                found = 1U;
+                break;
+            }
+        }
+        if (!found)
+        {
+            idx = (uint8_t)i;
+            break;
+        }
+    }
+
+    if (idx == 0xFFU) return;
+
+    memset(&file_draw, 0, sizeof(file_draw));
+    file_draw.magic[0] = DRAW_MAGIC0;
+    file_draw.magic[1] = DRAW_MAGIC1;
+    file_draw.magic[2] = DRAW_MAGIC2;
+    file_draw.magic[3] = DRAW_MAGIC3;
+    file_make_pic_name(idx, file_draw.name);
+
+    if (NameEdit_Run(file_draw.name, (uint8_t)sizeof(file_draw.name), 1U, Draw_NameUsed))
+    {
+        if (SFlash_SaveSector(DRAW_SECTOR_BASE + idx, (const uint8_t *)&file_draw, sizeof(DrawFile_t)) == SFLASH_OK)
+        {
+            Log_Write(LOG_TYPE_DRAW, "NEW");
+            OLED_Clear();
+            OLED_SetCursor(16, 28);
+            OLED_PrintString("SAVED");
+            OLED_Display();
+            osDelay(300U);
+        }
+    }
 }
 
 static void file_load_music_name(uint8_t idx, char *name)
@@ -295,7 +353,7 @@ static void file_picture_menu(void)
             case '#':
                 if (sel == used_on_page)
                 {
-                    Draw_App_New();
+                    file_new_picture();
                     file_scan_pictures();
                 }
                 else if (sel < used_on_page)
