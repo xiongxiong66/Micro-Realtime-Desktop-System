@@ -42,7 +42,7 @@
 const osThreadAttr_t Watchdog_attributes = {
   .name = "Watchdog",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityAboveNormal,
 };
 
 /* USER CODE END PTD */

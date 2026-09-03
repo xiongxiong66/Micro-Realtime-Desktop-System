@@ -6,6 +6,7 @@
   */
 
 #include "Music_App.h"
+#include "TaskWatch.h"
 #include "Oled_App.h"
 #include "Set_App.h"
 #include "MusicFile.h"
@@ -25,6 +26,8 @@
 #define MUSIC_SCRATCH_SECTOR 1024U
 #define MUSIC_COPY_CHUNK     64U
 #define MUSIC_BG_FLAG_UPDATE 0x01U
+#define MUSIC_PERF_FLAG      0x02U
+#define MUSIC_PERF_NOTE_MS   250U
 
 static uint8_t music_used[MUSIC_SECTOR_COUNT];
 static uint16_t music_used_count;
@@ -38,6 +41,20 @@ static uint16_t music_bg_count;
 static uint16_t music_bg_cur;
 static uint32_t music_bg_total_ms;
 static uint32_t music_bg_elapsed_ms;
+static volatile uint8_t music_perf_pending;
+static volatile uint16_t music_perf_freq;
+static volatile uint16_t music_perf_duration_ms;
+
+static const uint16_t music_perf_freq_tab[8U] = {
+    0U, 262U, 294U, 330U, 349U, 392U, 440U, 494U
+};
+static const char *const music_perf_disp_tab[8U] = {
+    "--", "DO", "RE", "MI", "FA", "SOL", "LA", "SI"
+};
+static const char *const music_perf_log_tab[8U] = {
+    "--", "KEY1 DO", "KEY2 RE", "KEY3 MI",
+    "KEY4 FA", "KEY5 SOL", "KEY6 LA", "KEY7 SI"
+};
 
 static void music_scan(void)
 {
@@ -233,6 +250,8 @@ void Music_Play(uint8_t idx)
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_OLED);
+
         uint32_t now = HAL_GetTick();
 
         if ((now - last_render) >= 500U)
@@ -256,6 +275,96 @@ void Music_Play(uint8_t idx)
     }
 }
 
+static void Music_Perf_Note(uint16_t frequency_hz, uint16_t duration_ms)
+{
+    music_perf_freq = frequency_hz;
+    music_perf_duration_ms = (duration_ms == 0U) ? 10U : duration_ms;
+    music_perf_pending = 1U;
+
+    if (MusicPlayHandle != NULL)
+    {
+        osThreadFlagsSet(MusicPlayHandle, MUSIC_PERF_FLAG);
+    }
+}
+
+static void Music_Perf_PauseBackground(void)
+{
+    music_bg_paused = 1U;
+
+    if (MusicPlayHandle != NULL)
+    {
+        osThreadFlagsSet(MusicPlayHandle, MUSIC_BG_FLAG_UPDATE);
+    }
+}
+
+static void Music_Perf_Stop(void)
+{
+    music_perf_pending = 0U;
+    Buzzer_Stop();
+
+    if (MusicPlayHandle != NULL)
+    {
+        osThreadFlagsSet(MusicPlayHandle, MUSIC_PERF_FLAG);
+    }
+}
+
+static void Music_Perf_Render(uint8_t last_key)
+{
+    OLED_Clear();
+    OLED_SetCursor(52, 0);
+    OLED_PrintString("PLAY");
+    OLED_SetCursor(25, 8);
+    OLED_PrintString("1 2 3 4 5 6 7");
+
+    if (last_key == 0U)
+    {
+        OLED_SetCursor(58, 32);
+        OLED_PrintString("--");
+    }
+    else
+    {
+        OLED_SetCursor(52, 32);
+        OLED_PrintString(music_perf_disp_tab[last_key]);
+        OLED_SetCursor(58, 48);
+        OLED_PrintNum((uint32_t)last_key, 10U);
+    }
+
+    OLED_Display();
+}
+
+static void Music_Perf_Run(void)
+{
+    char key;
+    uint8_t last_key = 0U;
+
+    Music_Perf_PauseBackground();
+    Log_Write(LOG_TYPE_MUSIC, "PERF START");
+
+    for (;;)
+    {
+        TaskWatch_Beat(TASKWATCH_OLED);
+        Music_Perf_Render(last_key);
+
+        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        {
+            continue;
+        }
+
+        if (key >= '1' && key <= '7')
+        {
+            uint8_t n = (uint8_t)(key - '0');
+            last_key = n;
+            Music_Perf_Note(music_perf_freq_tab[n], MUSIC_PERF_NOTE_MS);
+            Log_Write(LOG_TYPE_MUSIC, music_perf_log_tab[n]);
+        }
+        else if (key == '*')
+        {
+            Music_Perf_Stop();
+            return;
+        }
+    }
+}
+
 void Music_Play_Task_Sys(void)
 {
     Buzzer_Init();
@@ -263,6 +372,32 @@ void Music_Play_Task_Sys(void)
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_MUSIC);
+
+        if (music_perf_pending != 0U)
+        {
+            uint16_t dur = music_perf_duration_ms;
+            uint32_t flags;
+
+            music_perf_pending = 0U;
+            if (dur == 0U) dur = 10U;
+
+            if (music_perf_freq > 0U)
+            {
+                Buzzer_SetFrequency(music_perf_freq);
+            }
+            else
+            {
+                Buzzer_Stop();
+            }
+
+            flags = osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE | MUSIC_PERF_FLAG,
+                                      osFlagsWaitAny, (uint32_t)dur);
+            (void)flags;
+            Buzzer_Stop();
+            continue;
+        }
+
         if (music_bg_active != 0U && music_bg_paused == 0U)
         {
             MusicEvent_t ev;
@@ -295,7 +430,8 @@ void Music_Play_Task_Sys(void)
             {
                 music_bg_active = 0U;
                 Buzzer_Stop();
-                osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE, osFlagsWaitAny, osWaitForever);
+                osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE | MUSIC_PERF_FLAG,
+                                  osFlagsWaitAny, osWaitForever);
                 continue;
             }
 
@@ -317,9 +453,10 @@ void Music_Play_Task_Sys(void)
                 Buzzer_Stop();
             }
 
-            flags = osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE, osFlagsWaitAny, (uint32_t)dur);
+            flags = osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE | MUSIC_PERF_FLAG,
+                                      osFlagsWaitAny, (uint32_t)dur);
 
-            if ((flags & MUSIC_BG_FLAG_UPDATE) != 0U)
+            if ((flags & (MUSIC_BG_FLAG_UPDATE | MUSIC_PERF_FLAG)) != 0U)
             {
                 Buzzer_Stop();
                 continue;
@@ -345,7 +482,8 @@ void Music_Play_Task_Sys(void)
         else
         {
             Buzzer_Stop();
-            osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE, osFlagsWaitAny, osWaitForever);
+            osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE | MUSIC_PERF_FLAG,
+                              osFlagsWaitAny, osWaitForever);
         }
     }
 }
@@ -528,7 +666,61 @@ static void music_selection(void)
     }
 }
 
+static void music_menu_render(uint8_t sel)
+{
+    OLED_Clear();
+
+    OLED_SetCursor(0, 8);
+    OLED_PrintString((sel == 0U) ? ">>PLAY" : "PLAY");
+
+    OLED_SetCursor(0, 24);
+    OLED_PrintString((sel == 1U) ? ">>SONGS" : "SONGS");
+
+    OLED_Display();
+}
+
+static void music_menu(void)
+{
+    uint8_t sel = 0U;
+    char key;
+
+    for (;;)
+    {
+        music_menu_render(sel);
+
+        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        {
+            continue;
+        }
+
+        switch (key)
+        {
+            case '2':
+            case '8':
+                sel = (uint8_t)(1U - sel);
+                break;
+            case '#':
+                if (sel == 0U)
+                {
+                    Music_Perf_Run();
+                }
+                else
+                {
+                    music_selection();
+                }
+                break;
+            case '1':
+                Music_Bg_Toggle();
+                break;
+            case '*':
+                return;
+            default:
+                break;
+        }
+    }
+}
+
 void Music_App_Run(void)
 {
-    music_selection();
+    music_menu();
 }

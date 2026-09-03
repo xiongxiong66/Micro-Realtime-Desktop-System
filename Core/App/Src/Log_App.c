@@ -551,6 +551,8 @@ void Log_View_Run(void)
         {
             if (Log_IsClearing())
             {
+                TaskWatch_Beat(TASKWATCH_OLED);
+
                 OLED_Clear();
                 OLED_SetCursor(0, 8);
                 OLED_PrintString("Clearing...");

@@ -182,29 +182,36 @@ static void Monitor_DrawTasks(uint8_t page, uint8_t pages, UBaseType_t task_coun
     OLED_Display();
 }
 
+static const char *const monitor_beat_names[TASKWATCH_COUNT] = {
+    "MKey", "Adc", "Log", "Oled", "File", "Music"
+};
+
+static void Monitor_DrawBeat(uint8_t id, uint8_t x, uint8_t y)
+{
+    OLED_SetCursor(x, y);
+    OLED_PrintString(monitor_beat_names[id]);
+    OLED_PrintChar(' ');
+    OLED_PrintString(TaskWatch_IsOk(id) ? "OK" : "HANG");
+}
+
 static void Monitor_DrawDevices(uint8_t page, uint8_t pages)
 {
     Monitor_DrawHeader(page, pages);
 
-    OLED_SetCursor(0, 16);
+    OLED_SetCursor(0, 8);
     OLED_PrintString("JOY ");
     OLED_PrintString(InputDev_IsConnected() ? "OK" : "FAIL");
 
-    OLED_SetCursor(0, 24);
-    OLED_PrintString("IN ");
-    OLED_PrintString(InputDev_IsConnected() ? "YES" : "NO");
-
-    OLED_SetCursor(0, 32);
-    OLED_PrintString("MKey ");
-    OLED_PrintString(TaskWatch_IsOk(TASKWATCH_MKEY) ? "OK" : "HANG");
+    for (uint8_t row = 0U; row < 3U; row++)
+    {
+        uint8_t y = (uint8_t)(16U + row * 8U);
+        Monitor_DrawBeat(row, 0U, y);
+        Monitor_DrawBeat((uint8_t)(row + 3U), 64U, y);
+    }
 
     OLED_SetCursor(0, 40);
-    OLED_PrintString("Adc ");
-    OLED_PrintString(TaskWatch_IsOk(TASKWATCH_ADC) ? "OK" : "HANG");
-
-    OLED_SetCursor(0, 48);
-    OLED_PrintString("Log ");
-    OLED_PrintString(TaskWatch_IsOk(TASKWATCH_LOG) ? "OK" : "HANG");
+    OLED_PrintString("IN ");
+    OLED_PrintString(InputDev_IsConnected() ? "YES" : "NO");
 
     Monitor_DrawFooter();
     OLED_Display();
@@ -218,6 +225,8 @@ void Monitor_Sys_Run(void)
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_OLED);
+
         uint32_t now = HAL_GetTick();
         UBaseType_t task_count = 0U;
         uint8_t pages;

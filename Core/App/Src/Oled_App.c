@@ -1,4 +1,5 @@
 #include "Oled_App.h"
+#include "TaskWatch.h"
 #include "Desktop_App.h"
 #include "Set_App.h"
 #include "Log_App.h"
@@ -117,6 +118,8 @@ static void Oled_Login_Sys(void)
 
 void Oled_Task_Sys(void)
 {
+    TaskWatch_Beat(TASKWATCH_OLED);
+
     OLED_Clear();
     OLED_SetCursor(49, 28);
     OLED_PrintString("START");

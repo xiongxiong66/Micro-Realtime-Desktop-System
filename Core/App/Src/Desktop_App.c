@@ -6,6 +6,7 @@
   */
 
 #include "Desktop_App.h"
+#include "TaskWatch.h"
 #include "InputDev_App.h"
 #include "Oled_App.h"
 #include "Sw_Adc_App.h"
@@ -258,6 +259,8 @@ void Desktop_Sys_Run(void)
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_OLED);
+
         uint8_t changed = 0U;
         //读到队列最后一个数据，如果光标按键的输入变化，就设置changed=1U，表示需要重新绘制桌面界面，无论有没有变化，input_alive都要设置为1U，表示光标输入还活跃
         while (osMessageQueueGet(cursorHandle, &cur, NULL, 0U) == osOK)

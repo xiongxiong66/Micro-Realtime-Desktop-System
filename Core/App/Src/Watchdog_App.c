@@ -33,12 +33,35 @@ void Watchdog_Init(void)
 
 void Watchdog_Task_Sys(void)
 {
+    uint8_t reset_pending = 0U;
+
     Watchdog_Init();
 
     for (;;)
     {
-        TaskWatch_Check();
-        HAL_IWDG_Refresh(&watch_iwdg);
+        if (TaskWatch_AnyHang())
+        {
+            if (reset_pending)
+            {
+                /* 已确认异常并记录过：停止喂狗，等待 IWDG 复位 */
+            }
+            else
+            {
+                /* 首次确认异常：先喂狗并记录，下一轮仍异常再停喂 */
+                TaskWatch_Check();
+                if (TaskWatch_AnyHang())
+                {
+                    reset_pending = 1U;
+                }
+                HAL_IWDG_Refresh(&watch_iwdg);
+            }
+        }
+        else
+        {
+            reset_pending = 0U;
+            TaskWatch_Check();
+            HAL_IWDG_Refresh(&watch_iwdg);
+        }
         osDelay(200U);
     }
 }

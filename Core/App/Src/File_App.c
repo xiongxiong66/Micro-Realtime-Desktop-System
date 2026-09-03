@@ -6,6 +6,7 @@
   */
 
 #include "File_App.h"
+#include "TaskWatch.h"
 #include "Oled_App.h"
 #include "Log_App.h"
 #include "ImgFile.h"
@@ -533,6 +534,8 @@ void App_File_Task_Sys(void)
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_FILE);
+
         file_main_menu();
 
         osThreadResume(oledHandle);

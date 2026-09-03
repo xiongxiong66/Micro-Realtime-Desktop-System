@@ -6,6 +6,7 @@
   */
 
 #include "Draw_App.h"
+#include "TaskWatch.h"
 #include "Oled_App.h"
 #include "ImgFile.h"
 #include "Music_App.h"
@@ -20,9 +21,23 @@
 #include <string.h>
 
 #define DRAW_PAGE_ROWS     6U       //每页显示的图片行数
-#define DRAW_PEN_DOT       0U       //画点模式
-#define DRAW_PEN_LINE      1U       //画线模式
-#define DRAW_PEN_ERASE     2U       //区域擦除模式
+#define DRAW_PEN_DOT          0U    //画点模式
+#define DRAW_PEN_LINE         1U    //画线模式
+#define DRAW_PEN_RECT         2U    //画空心矩形
+#define DRAW_PEN_ERASE        3U    //矩形区域擦除
+#define DRAW_PEN_CIRCLE       4U    //画空心圆
+#define DRAW_PEN_FILL_CIRCLE  5U    //画实心圆
+#define DRAW_PEN_INVERT       6U    //整图背景/笔迹反色
+
+static const uint8_t draw_cycle[] = {
+    DRAW_PEN_DOT,
+    DRAW_PEN_LINE,
+    DRAW_PEN_RECT,
+    DRAW_PEN_CIRCLE,
+    DRAW_PEN_FILL_CIRCLE,
+    DRAW_PEN_INVERT
+};
+#define DRAW_CYCLE_COUNT  (uint8_t)(sizeof(draw_cycle) / sizeof(draw_cycle[0]))
 
 static DrawFile_t draw_file;
 static uint8_t draw_used[DRAW_SECTOR_COUNT];
@@ -208,6 +223,94 @@ static void draw_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
     }
 }
 
+static void draw_rect_outline(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
+{
+    int16_t xa = (x0 < x1) ? x0 : x1;
+    int16_t xb = (x0 < x1) ? x1 : x0;
+    int16_t ya = (y0 < y1) ? y0 : y1;
+    int16_t yb = (y0 < y1) ? y1 : y0;
+
+    draw_line(xa, ya, xb, ya);
+    draw_line(xb, ya, xb, yb);
+    draw_line(xb, yb, xa, yb);
+    draw_line(xa, yb, xa, ya);
+}
+
+static void draw_circle_plot_data(int16_t cx, int16_t cy, int16_t x, int16_t y)
+{
+    draw_set_pixel((int16_t)(cx + x), (int16_t)(cy + y));
+    draw_set_pixel((int16_t)(cx + x), (int16_t)(cy - y));
+    draw_set_pixel((int16_t)(cx - x), (int16_t)(cy + y));
+    draw_set_pixel((int16_t)(cx - x), (int16_t)(cy - y));
+    draw_set_pixel((int16_t)(cx + y), (int16_t)(cy + x));
+    draw_set_pixel((int16_t)(cx + y), (int16_t)(cy - x));
+    draw_set_pixel((int16_t)(cx - y), (int16_t)(cy + x));
+    draw_set_pixel((int16_t)(cx - y), (int16_t)(cy - x));
+}
+
+static void draw_circle_outline_data(int16_t cx, int16_t cy, int16_t r)
+{
+    int16_t x = r;
+    int16_t y = 0;
+    int16_t err = 0;
+
+    if (r < 0) return;
+
+    while (x >= y)
+    {
+        draw_circle_plot_data(cx, cy, x, y);
+        y++;
+        if (err <= 0)
+        {
+            err = (int16_t)(err + 2 * y + 1);
+        }
+        if (err > 0)
+        {
+            x--;
+            err = (int16_t)(err - 2 * x - 1);
+        }
+    }
+}
+
+static void draw_filled_circle_data(int16_t cx, int16_t cy, int16_t r)
+{
+    int16_t x, y;
+
+    if (r < 0) return;
+
+    for (y = (int16_t)(cy - r); y <= (int16_t)(cy + r); y++)
+    {
+        for (x = (int16_t)(cx - r); x <= (int16_t)(cx + r); x++)
+        {
+            int16_t dx = (x >= cx) ? (int16_t)(x - cx) : (int16_t)(cx - x);
+            int16_t dy = (y >= cy) ? (int16_t)(y - cy) : (int16_t)(cy - y);
+
+            if (dx * dx + dy * dy <= r * r)
+            {
+                draw_set_pixel(x, y);
+            }
+        }
+    }
+}
+
+static int16_t draw_anchor_radius(int16_t cx, int16_t cy, int16_t x, int16_t y)
+{
+    int16_t dx = (x > cx) ? (int16_t)(x - cx) : (int16_t)(cx - x);
+    int16_t dy = (y > cy) ? (int16_t)(y - cy) : (int16_t)(cy - y);
+
+    return (dx > dy) ? dx : dy;
+}
+
+static void draw_invert_image(void)
+{
+    uint16_t i;
+
+    for (i = 0U; i < OLED_BUFFER_SIZE; i++)
+    {
+        draw_file.data[i] ^= 0xFFU;
+    }
+}
+
 static void draw_preview_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
 {
     int16_t dx = (x1 > x0) ? (int16_t)(x1 - x0) : (int16_t)(x0 - x1);
@@ -270,11 +373,102 @@ static void draw_preview_rect(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
     }
 }
 
+static void draw_circle_plot_preview(int16_t cx, int16_t cy, int16_t x, int16_t y)
+{
+    OLED_DrawPixel((uint8_t)(cx + x), (uint8_t)(cy + y), OLED_WHITE);
+    OLED_DrawPixel((uint8_t)(cx + x), (uint8_t)(cy - y), OLED_WHITE);
+    OLED_DrawPixel((uint8_t)(cx - x), (uint8_t)(cy + y), OLED_WHITE);
+    OLED_DrawPixel((uint8_t)(cx - x), (uint8_t)(cy - y), OLED_WHITE);
+    OLED_DrawPixel((uint8_t)(cx + y), (uint8_t)(cy + x), OLED_WHITE);
+    OLED_DrawPixel((uint8_t)(cx + y), (uint8_t)(cy - x), OLED_WHITE);
+    OLED_DrawPixel((uint8_t)(cx - y), (uint8_t)(cy + x), OLED_WHITE);
+    OLED_DrawPixel((uint8_t)(cx - y), (uint8_t)(cy - x), OLED_WHITE);
+}
+
+static void draw_circle_outline_preview(int16_t cx, int16_t cy, int16_t r)
+{
+    int16_t x = r;
+    int16_t y = 0;
+    int16_t err = 0;
+
+    if (r < 0) return;
+
+    while (x >= y)
+    {
+        draw_circle_plot_preview(cx, cy, x, y);
+        y++;
+        if (err <= 0)
+        {
+            err = (int16_t)(err + 2 * y + 1);
+        }
+        if (err > 0)
+        {
+            x--;
+            err = (int16_t)(err - 2 * x - 1);
+        }
+    }
+}
+
+static void draw_filled_circle_preview(int16_t cx, int16_t cy, int16_t r)
+{
+    int16_t x, y;
+
+    if (r < 0) return;
+
+    for (y = (int16_t)(cy - r); y <= (int16_t)(cy + r); y++)
+    {
+        for (x = (int16_t)(cx - r); x <= (int16_t)(cx + r); x++)
+        {
+            int16_t dx = (x >= cx) ? (int16_t)(x - cx) : (int16_t)(cx - x);
+            int16_t dy = (y >= cy) ? (int16_t)(y - cy) : (int16_t)(cy - y);
+
+            if (dx * dx + dy * dy <= r * r)
+            {
+                OLED_DrawPixel((uint8_t)x, (uint8_t)y, OLED_WHITE);
+            }
+        }
+    }
+}
+
+static void draw_cursor_box(int16_t x, int16_t y, int16_t s, uint8_t mark_center)
+{
+    int16_t i;
+
+    for (i = 0; i < s; i++)
+    {
+        OLED_DrawPixel((uint8_t)(x + i), (uint8_t)y, OLED_WHITE);
+        OLED_DrawPixel((uint8_t)(x + i), (uint8_t)(y + s - 1), OLED_WHITE);
+        OLED_DrawPixel((uint8_t)x, (uint8_t)(y + i), OLED_WHITE);
+        OLED_DrawPixel((uint8_t)(x + s - 1), (uint8_t)(y + i), OLED_WHITE);
+    }
+    if (mark_center != 0U && s >= 3)
+    {
+        OLED_DrawPixel((uint8_t)(x + s / 2), (uint8_t)(y + s / 2), OLED_WHITE);
+    }
+}
+
+static void draw_cursor_invert(int16_t x, int16_t y, int16_t s)
+{
+    int16_t i;
+
+    draw_cursor_box(x, y, s, 0U);
+    for (i = 1; i < s - 1; i++)
+    {
+        OLED_DrawPixel((uint8_t)(x + i), (uint8_t)(y + i), OLED_WHITE);
+        OLED_DrawPixel((uint8_t)(x + s - 1 - i), (uint8_t)(y + i), OLED_WHITE);
+    }
+}
+
 static void draw_pen_action(int16_t cx, int16_t cy)
 {
     if (draw_pen_mode == DRAW_PEN_DOT)
     {
         draw_toggle_pixel(cx, cy);
+        return;
+    }
+    if (draw_pen_mode == DRAW_PEN_INVERT)
+    {
+        draw_invert_image();
         return;
     }
 
@@ -286,15 +480,56 @@ static void draw_pen_action(int16_t cx, int16_t cy)
     }
     else
     {
-        if (draw_pen_mode == DRAW_PEN_LINE)
+        int16_t r;
+
+        switch (draw_pen_mode)
         {
-            draw_line(draw_anchor_x, draw_anchor_y, cx, cy);
-        }
-        else
-        {
-            draw_erase_region(draw_anchor_x, draw_anchor_y, cx, cy);
+            case DRAW_PEN_LINE:
+                draw_line(draw_anchor_x, draw_anchor_y, cx, cy);
+                break;
+            case DRAW_PEN_RECT:
+                draw_rect_outline(draw_anchor_x, draw_anchor_y, cx, cy);
+                break;
+            case DRAW_PEN_ERASE:
+                draw_erase_region(draw_anchor_x, draw_anchor_y, cx, cy);
+                break;
+            case DRAW_PEN_CIRCLE:
+            case DRAW_PEN_FILL_CIRCLE:
+                r = draw_anchor_radius(draw_anchor_x, draw_anchor_y, cx, cy);
+                if (draw_pen_mode == DRAW_PEN_FILL_CIRCLE)
+                {
+                    draw_filled_circle_data(draw_anchor_x, draw_anchor_y, r);
+                }
+                else
+                {
+                    draw_circle_outline_data(draw_anchor_x, draw_anchor_y, r);
+                }
+                break;
+            default:
+                break;
         }
         draw_anchor_pending = 0U;
+    }
+}
+
+static const char *draw_mode_text(void)
+{
+    switch (draw_pen_mode)
+    {
+        case DRAW_PEN_LINE:
+            return "LINE";
+        case DRAW_PEN_RECT:
+            return "RECT";
+        case DRAW_PEN_ERASE:
+            return "ERASE";
+        case DRAW_PEN_CIRCLE:
+            return "CIRC";
+        case DRAW_PEN_FILL_CIRCLE:
+            return "FILL";
+        case DRAW_PEN_INVERT:
+            return "INV ";
+        default:
+            return "DOT ";
     }
 }
 
@@ -302,6 +537,7 @@ static void draw_edit_render(int16_t cx, int16_t cy)
 {
     int16_t x = cx, y = cy;
     uint8_t cs = Set_Sys_GetCursorPixels();
+    int16_t s;
 
     if (x < 0) x = 0;
     if (y < 0) y = 0;
@@ -317,6 +553,7 @@ static void draw_edit_render(int16_t cx, int16_t cy)
     }
 
     OLED_Blit(draw_file.data);
+    OLED_FillRect(0, 56, OLED_WIDTH, 8U, OLED_BLACK);
 
     if (draw_anchor_pending)
     {
@@ -325,9 +562,16 @@ static void draw_edit_render(int16_t cx, int16_t cy)
             draw_preview_line(draw_anchor_x, draw_anchor_y, x, y);
             OLED_DrawPixel((uint8_t)draw_anchor_x, (uint8_t)draw_anchor_y, OLED_WHITE);
         }
-        else
+        else if (draw_pen_mode == DRAW_PEN_RECT
+              || draw_pen_mode == DRAW_PEN_ERASE)
         {
             draw_preview_rect(draw_anchor_x, draw_anchor_y, x, y);
+        }
+        else if (draw_pen_mode == DRAW_PEN_CIRCLE
+              || draw_pen_mode == DRAW_PEN_FILL_CIRCLE)
+        {
+            int16_t r = draw_anchor_radius(draw_anchor_x, draw_anchor_y, x, y);
+            draw_circle_outline_preview(draw_anchor_x, draw_anchor_y, r);
         }
     }
 
@@ -344,26 +588,29 @@ static void draw_edit_render(int16_t cx, int16_t cy)
                 OLED_DrawPixel((uint8_t)x, (uint8_t)(y + i), OLED_WHITE);
         }
     }
+    else if (draw_pen_mode == DRAW_PEN_RECT)
+    {
+        /* 画矩形模式：空心方框加中心点，与擦除图标区分 */
+        s = (cs > 1U) ? (int16_t)cs : 3;
+        draw_cursor_box(x, y, s, 1U);
+    }
     else if (draw_pen_mode == DRAW_PEN_ERASE)
     {
         /* 区域擦除模式：空心方框光标 */
-        int16_t s = (cs > 1U) ? (int16_t)cs : 3;
-
-        for (int16_t i = 0; i < s; i++)
-        {
-            if (x + i >= 0 && x + i < (int16_t)OLED_WIDTH)
-            {
-                OLED_DrawPixel((uint8_t)(x + i), (uint8_t)y, OLED_WHITE);
-                OLED_DrawPixel((uint8_t)(x + i), (uint8_t)(y + s - 1), OLED_WHITE);
-            }
-            if (y + i >= 0 && y + i < (int16_t)OLED_HEIGHT)
-            {
-                OLED_DrawPixel((uint8_t)x, (uint8_t)(y + i), OLED_WHITE);
-                OLED_DrawPixel((uint8_t)(x + s - 1), (uint8_t)(y + i), OLED_WHITE);
-            }
-        }
+        s = (cs > 1U) ? (int16_t)cs : 3;
+        draw_cursor_box(x, y, s, 0U);
     }
-    else
+    else if (draw_pen_mode == DRAW_PEN_CIRCLE)
+    {
+        s = (int16_t)((cs + 1U) / 2U);
+        draw_circle_outline_preview(x, y, s);
+    }
+    else if (draw_pen_mode == DRAW_PEN_FILL_CIRCLE)
+    {
+        s = (int16_t)((cs + 1U) / 2U);
+        draw_filled_circle_preview(x, y, s);
+    }
+    else if (draw_pen_mode == DRAW_PEN_DOT)
     {
         for (uint8_t yy = 0U; yy < cs; yy++)
         {
@@ -373,10 +620,13 @@ static void draw_edit_render(int16_t cx, int16_t cy)
             }
         }
     }
+    else
+    {
+        s = (cs > 1U) ? (int16_t)cs : 3;
+        draw_cursor_invert(x, y, s);
+    }
 
-    OLED_PrintStringColor(0, 56,
-        (draw_pen_mode == DRAW_PEN_LINE) ? "LINE" :
-        (draw_pen_mode == DRAW_PEN_ERASE) ? "ERASE" : "DOT ", OLED_WHITE);
+    OLED_PrintStringColor(0, 56, draw_mode_text(), OLED_WHITE);
     OLED_Display();
 }
 
@@ -390,6 +640,25 @@ static void draw_save(uint8_t idx)
         OLED_Display();
         osDelay(300U);
     }
+}
+
+static void draw_next_mode(void)
+{
+    uint8_t i;
+
+    for (i = 0U; i < DRAW_CYCLE_COUNT; i++)
+    {
+        if (draw_cycle[i] == draw_pen_mode)
+        {
+            draw_pen_mode = draw_cycle[(uint8_t)((i + 1U) % DRAW_CYCLE_COUNT)];
+            draw_anchor_pending = 0U;
+            return;
+        }
+    }
+
+    /* 矩形擦除不在 C 循环内，按 C 时从擦除回到画点 */
+    draw_pen_mode = DRAW_PEN_DOT;
+    draw_anchor_pending = 0U;
 }
 
 static void draw_edit(uint8_t idx, uint8_t is_new)
@@ -406,6 +675,8 @@ static void draw_edit(uint8_t idx, uint8_t is_new)
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_OLED);
+
         CursorMsg_t msg;
 
         while (osMessageQueueGet(cursorHandle, &msg, NULL, 0U) == osOK)
@@ -471,7 +742,10 @@ static void draw_edit(uint8_t idx, uint8_t is_new)
                     draw_anchor_pending = 0U;
                     break;
                 case 'C':
-                    draw_pen_mode = (uint8_t)((draw_pen_mode + 1U) % 3U);
+                    draw_next_mode();
+                    break;
+                case 'D':
+                    draw_pen_mode = DRAW_PEN_ERASE;
                     draw_anchor_pending = 0U;
                     break;
                 case '#':

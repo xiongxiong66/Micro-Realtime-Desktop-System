@@ -17,7 +17,7 @@ typedef struct {
     uint8_t cursor_size;   /* 0 small, 1 medium, 2 large */
     uint8_t sensitivity;   /* 0 low, 1 medium, 2 high */
     uint8_t brightness;    /* 0 low, 1 medium, 2 high */
-    uint8_t volume;        /* 0..9 -> 0%..50% duty */
+    uint8_t volume;        /* 0 mute, 1..5 louder */
     uint8_t screen_timeout;/* 0..4 -> 10/15/20/25/30 s */
     char password[SETTINGS_PIN_MAX_LEN + 1U];
 } SetConfig_t;

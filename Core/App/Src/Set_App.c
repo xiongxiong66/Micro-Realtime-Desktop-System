@@ -19,6 +19,7 @@
 #include <string.h>
 
 #define SETTINGS_RECORD_SIZE  22U
+#define SETTINGS_VERSION      1U
 
 #define SETTINGS_MAGIC0 'S'
 #define SETTINGS_MAGIC1 'E'
@@ -74,7 +75,12 @@ static void Set_RecordToConfig(const SetRecord_t *rec)
     if (g_set_config.cursor_size >= SETTINGS_LEVELS) g_set_config.cursor_size = 1U;
     if (g_set_config.sensitivity >= SETTINGS_LEVELS) g_set_config.sensitivity = 1U;
     if (g_set_config.brightness >= SETTINGS_LEVELS) g_set_config.brightness = 1U;
-    if (g_set_config.volume >= 10U) g_set_config.volume = 9U;
+    if (rec->reserved != SETTINGS_VERSION)
+    {
+        /* 旧版记录：0 静音、1 极小、其余归并到最大档 */
+        if (g_set_config.volume > 1U) g_set_config.volume = 5U;
+    }
+    if (g_set_config.volume >= 6U) g_set_config.volume = 5U;
     if (g_set_config.screen_timeout >= 5U) g_set_config.screen_timeout = 2U;
 }
 
@@ -110,7 +116,7 @@ void Set_Sys_Load(void)
     g_set_config.cursor_size = 1U;
     g_set_config.sensitivity = 1U;
     g_set_config.brightness = 1U;
-    g_set_config.volume = 9U;
+    g_set_config.volume = 5U;
     g_set_config.screen_timeout = 2U;
     memset(g_set_config.password, 0, sizeof(g_set_config.password));
     strcpy(g_set_config.password, "12345");
@@ -134,7 +140,7 @@ void Set_Sys_Save(void)
     rec.screen_timeout = g_set_config.screen_timeout;
     memset(rec.password, 0, sizeof(rec.password));
     memcpy(rec.password, g_set_config.password, SETTINGS_PIN_MAX_LEN + 1U);
-    rec.reserved = 0U;
+    rec.reserved = SETTINGS_VERSION;
     rec.checksum = Set_Checksum(&rec);
 
     if (SFlash_Init() != SFLASH_OK)
@@ -178,7 +184,10 @@ void Set_Sys_ApplyBrightness(void)
 
 void Set_Sys_ApplyVolume(void)
 {
-    Buzzer_SetVolumePermille((uint16_t)(((uint32_t)g_set_config.volume * 500U) / 9U));
+    static const uint16_t volume_tab[6] = {0U, 10U, 30U, 80U, 200U, 500U};
+    uint8_t v = (g_set_config.volume < 6U) ? g_set_config.volume : 5U;
+
+    Buzzer_SetVolumePermille(volume_tab[v]);
 }
 
 uint8_t Set_Sys_GetCursorSize(void)
@@ -353,7 +362,7 @@ static void Set_Render(uint8_t page, uint8_t sel)
         OLED_PrintString(sel == 3U ? ">" : " ");
         OLED_PrintString("VOLUME ");
         OLED_PrintNum((uint32_t)g_set_config.volume, 10);
-        OLED_PrintString("/9");
+        OLED_PrintString("/5");
 
         OLED_SetCursor(0, 40);
         OLED_PrintString(sel == 4U ? ">" : " ");
@@ -387,7 +396,7 @@ static void Set_Change(uint8_t sel, int8_t dir)
 
     if (sel >= 5U) return;
 
-    max_level = (sel == 3U) ? 10U : (sel == 4U) ? 5U : SETTINGS_LEVELS;
+    max_level = (sel == 3U) ? 6U : (sel == 4U) ? 5U : SETTINGS_LEVELS;
     if (dir > 0)
     {
         *value = (*value + 1U < max_level) ? (uint8_t)(*value + 1U) : 0U;

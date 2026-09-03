@@ -12,10 +12,14 @@
 #define TASKWATCH_MKEY  0U
 #define TASKWATCH_ADC   1U
 #define TASKWATCH_LOG   2U
-#define TASKWATCH_COUNT 3U
+#define TASKWATCH_OLED  3U
+#define TASKWATCH_FILE  4U
+#define TASKWATCH_MUSIC 5U
+#define TASKWATCH_COUNT 6U
 
 void TaskWatch_Beat(uint8_t id);
 void TaskWatch_Check(void);
 uint8_t TaskWatch_IsOk(uint8_t id);
+uint8_t TaskWatch_AnyHang(void);
 
 #endif /* __TASK_WATCH_H */
