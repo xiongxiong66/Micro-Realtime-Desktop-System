@@ -215,11 +215,48 @@ FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
 
 ### LOG
 
-- 显示日志，翻页时实时从 Flash 读取，不再限制 24 条（最多 4758 页）
-- 日志类型：`B` 开机、`S` 设置、`M` 音乐、`A` 应用、`E` 错误、`D` 图片
-- `0` 清空日志（带确认）：逐个擦除日志扇区，若清空过程中 Flash 操作失败，会写入 `LOG CLEAR ERR`，并使桌面/Monitor 的 `ERR` 计数加 1
-- `4/6` 翻页
-- `0` 清空日志（带确认）
+- 日志查看器第一行显示 `LOG <page>/<pages>`，正文每行格式为 `<类型> <文本>`，无记录时显示 `No Log`，最多 4758 页，翻页时实时从 Flash 读取
+- `0` 清空日志：确认框显示 `Clear Logs`，清空中显示 `Clearing...`，完成后显示 `CLEARED`；若清空过程中 Flash 操作失败，会写入 `LOG CLEAR ERR`，并使桌面/Monitor 的 `ERR` 计数加 1
+- `4/6` 翻页，`*` 返回
+
+日志类型前缀：
+
+| 前缀 | 含义 |
+|------|------|
+| `B` | 开机 |
+| `S` | 设置 |
+| `M` | 音乐 |
+| `A` | 应用 |
+| `E` | 错误 |
+| `D` | 图片 |
+
+日志应用可能出现的全部记录输出：
+
+| 类型 | 输出文本 | 触发场景 |
+|------|----------|----------|
+| `B` | `BOOT OK` | Log 任务完成初始化后写入 |
+| `S` | `SET LOAD OK` | 开机读取设置并校验成功 |
+| `S` | `SET LOAD FAIL` | 开机设置读取/校验失败，回退默认值 |
+| `S` | `SET SAVED` | 设置保存并回读校验成功 |
+| `E` | `SET SAVE ERR` | 设置保存初始化/擦写/回读失败 |
+| `M` | `PLAY` | `Music_Bg_Start()` 启动后台播放 |
+| `M` | `PAUSE` / `RESUME` | 歌曲页按 `1` 暂停/继续播放 |
+| `M` | `PERF START` | 进入演奏模式 |
+| `M` | `KEY1 DO` ~ `KEY7 SI` | 演奏模式按 `1-7` 演奏对应音节 |
+| `M` | `RENAMED` / `DELETED` | MUSI>SONGS 或 FILE>MUSIC 中重命名/删除歌曲 |
+| `A` | `SLEEP` | 超时自动息屏或按 `A` 强制息屏 |
+| `A` | `WAKE` | 输入设备唤醒屏幕 |
+| `A` | `JOY ON` | 摇杆从断开状态恢复 |
+| `E` | `JOY OFF` | 摇杆判定断开 |
+| `E` | `LOGIN FAIL` | PIN 密码输入错误 |
+| `E` | `LOG CLEAR ERR` | 清空日志过程中扇区擦除失败 |
+| `E` | `WDG RESET` | 开机检测到 IWDG 看门狗复位 |
+| `E` | `HANG MKey` / `HANG SwAdc` / `HANG Log` / `HANG Oled` / `HANG File` / `HANG Music` | 对应任务心跳超时，首次判定卡死 |
+| `E` | `STK <任务名>` | 上次栈溢出记录在开机时转写 |
+| `E` | `MALLOC FAIL` | 上次内存分配失败记录在开机时转写 |
+| `D` | `NEW` | Draw 编辑器保存新图，或 File 图片列表新建空白图片并保存成功 |
+| `D` | `RENAMED` / `MODIFIED` | Draw 编辑器改名后保存/内容修改后保存 |
+| `D` | `DELETED` | Draw 图片列表删除图片 |
 
 ## 常用按键
 
