@@ -26,7 +26,6 @@
 #define MUSIC_SCRATCH_SECTOR 1024U
 #define MUSIC_COPY_CHUNK     64U
 #define MUSIC_BG_FLAG_UPDATE 0x01U
-#define MUSIC_PERF_FLAG      0x02U
 #define MUSIC_PERF_NOTE_MS   250U
 
 static uint8_t music_used[MUSIC_SECTOR_COUNT];
@@ -214,6 +213,24 @@ uint8_t Music_Bg_IsPlaying(void)
     return (music_bg_active != 0U && music_bg_paused == 0U) ? 1U : 0U;
 }
 
+static void Music_Bg_StopAll(void)
+{
+    music_bg_active = 0U;
+    music_bg_paused = 1U;
+    music_bg_restart = 0U;
+    music_bg_count = 0U;
+    music_bg_cur = 0U;
+    music_bg_elapsed_ms = 0U;
+    music_bg_total_ms = 0U;
+    music_perf_pending = 0U;
+    Buzzer_Stop();
+
+    if (MusicPlayHandle != NULL)
+    {
+        osThreadFlagsSet(MusicPlayHandle, MUSIC_BG_FLAG_UPDATE);
+    }
+}
+
 uint32_t Music_Bg_GetElapsedMs(void)
 {
     return music_bg_elapsed_ms;
@@ -245,6 +262,7 @@ void Music_Play(uint8_t idx)
     char key;
     uint32_t last_render = 0U;
 
+    Music_Bg_StopAll();
     Music_Bg_Prepare(idx);
     music_load_name(idx, name);
 
@@ -283,7 +301,7 @@ static void Music_Perf_Note(uint16_t frequency_hz, uint16_t duration_ms)
 
     if (MusicPlayHandle != NULL)
     {
-        osThreadFlagsSet(MusicPlayHandle, MUSIC_PERF_FLAG);
+        osThreadFlagsSet(MusicPlayHandle, MUSIC_BG_FLAG_UPDATE);
     }
 }
 
@@ -304,7 +322,7 @@ static void Music_Perf_Stop(void)
 
     if (MusicPlayHandle != NULL)
     {
-        osThreadFlagsSet(MusicPlayHandle, MUSIC_PERF_FLAG);
+        osThreadFlagsSet(MusicPlayHandle, MUSIC_BG_FLAG_UPDATE);
     }
 }
 
@@ -391,7 +409,7 @@ void Music_Play_Task_Sys(void)
                 Buzzer_Stop();
             }
 
-            flags = osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE | MUSIC_PERF_FLAG,
+            flags = osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE,
                                       osFlagsWaitAny, (uint32_t)dur);
             (void)flags;
             Buzzer_Stop();
@@ -430,7 +448,7 @@ void Music_Play_Task_Sys(void)
             {
                 music_bg_active = 0U;
                 Buzzer_Stop();
-                osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE | MUSIC_PERF_FLAG,
+                osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE,
                                   osFlagsWaitAny, osWaitForever);
                 continue;
             }
@@ -453,10 +471,10 @@ void Music_Play_Task_Sys(void)
                 Buzzer_Stop();
             }
 
-            flags = osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE | MUSIC_PERF_FLAG,
+            flags = osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE,
                                       osFlagsWaitAny, (uint32_t)dur);
 
-            if ((flags & (MUSIC_BG_FLAG_UPDATE | MUSIC_PERF_FLAG)) != 0U)
+            if ((flags & MUSIC_BG_FLAG_UPDATE) != 0U)
             {
                 Buzzer_Stop();
                 continue;
@@ -482,7 +500,7 @@ void Music_Play_Task_Sys(void)
         else
         {
             Buzzer_Stop();
-            osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE | MUSIC_PERF_FLAG,
+            osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE,
                               osFlagsWaitAny, osWaitForever);
         }
     }
