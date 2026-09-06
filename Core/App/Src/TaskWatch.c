@@ -13,7 +13,7 @@
 #include "main.h"
 #include <string.h>
 
-#define TASKWATCH_TIMEOUT_MS      3000U
+#define TASKWATCH_TIMEOUT_MS      5000U
 #define TASKWATCH_CHECK_PERIOD_MS 1000U
 
 extern osThreadId_t MKeyHandle;

@@ -12,6 +12,7 @@
 #include "TaskWatch.h"
 #include "TaskErr.h"
 #include "Oled_App.h"
+#include "CursorView.h"
 #include "Music_App.h"
 #include "Set_App.h"
 #include "cmsis_os.h"
@@ -509,6 +510,18 @@ static char Log_TypeChar(uint8_t type)
     }
 }
 
+static uint8_t Log_HitLeftPage(const CursorMsg_t *msg)
+{
+    return (msg->cursor_x >= 0 && msg->cursor_x < 40
+         && msg->cursor_y >= 56 && msg->cursor_y < OLED_HEIGHT) ? 1U : 0U;
+}
+
+static uint8_t Log_HitRightPage(const CursorMsg_t *msg)
+{
+    return (msg->cursor_x >= 88 && msg->cursor_x < OLED_WIDTH
+         && msg->cursor_y >= 56 && msg->cursor_y < OLED_HEIGHT) ? 1U : 0U;
+}
+
 static void Log_Render(uint16_t page, uint16_t pages)
 {
     OLED_Clear();
@@ -537,15 +550,55 @@ static void Log_Render(uint16_t page, uint16_t pages)
     OLED_Display();
 }
 
+static void Log_DrawHintRow(uint8_t left_sel, uint8_t right_sel)
+{
+    CursorView_Erase();
+
+    OLED_FillRect(0, 56U, OLED_WIDTH, 8U, OLED_BLACK);
+
+    if (left_sel != 0U)
+    {
+        OLED_SetCursor(0, 56);
+        OLED_PrintString("[<<]");
+    }
+    else
+    {
+        OLED_SetCursor(0, 56);
+        OLED_PrintString("<<");
+    }
+
+    if (right_sel != 0U)
+    {
+        OLED_SetCursor(104, 56);
+        OLED_PrintString("[>>]");
+    }
+    else
+    {
+        OLED_SetCursor(116, 56);
+        OLED_PrintString(">>");
+    }
+
+    OLED_UpdateRect(0, 56U, OLED_WIDTH, 8U);
+    CursorView_Place();
+}
+
 void Log_View_Run(void)
 {
     uint16_t page = 0U;
+    uint16_t pages = 1U;
     char key;
     uint8_t clearing = 0U;
+    uint8_t need_render = 1U;
+    uint8_t prev_joy_button = 0U;
+    uint8_t left_sel = 0U;
+    uint8_t right_sel = 0U;
+    CursorMsg_t cur = {64, 32, 0};
 
     for (;;)
     {
-        uint16_t pages = (uint16_t)((log_total_count + LOG_PAGE_ROWS - 1U) / LOG_PAGE_ROWS);
+        TaskWatch_Beat(TASKWATCH_OLED);
+
+        Cursor_GetPos(&cur.cursor_x, &cur.cursor_y);
 
         if (clearing != 0U)
         {
@@ -564,6 +617,7 @@ void Log_View_Run(void)
 
             clearing = 0U;
             page = 0U;
+            need_render = 1U;
             OLED_Clear();
             OLED_SetCursor(16, 28);
             OLED_PrintString("CLEARED");
@@ -571,33 +625,87 @@ void Log_View_Run(void)
             osDelay(300U);
         }
 
-        if (pages == 0U) pages = 1U;
-        if (page >= pages) page = (uint16_t)(pages - 1U);
-
-        Log_ReadPage((uint32_t)page);
-        Log_Render(page, pages);
-
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (need_render != 0U)
         {
-            continue;
+            pages = (uint16_t)((log_total_count + LOG_PAGE_ROWS - 1U)
+                               / LOG_PAGE_ROWS);
+            if (pages == 0U) pages = 1U;
+            if (page >= pages) page = (uint16_t)(pages - 1U);
+
+            Log_ReadPage((uint32_t)page);
+            Log_Render(page, pages);
         }
 
-        if (key == '*') return;
-        else if (key == '1') Music_Bg_Toggle();
-        else if (key == '0')
         {
-            if (Confirm_Ask("Clear Logs") && Log_Clear())
+            uint8_t new_left = Log_HitLeftPage(&cur);
+            uint8_t new_right = Log_HitRightPage(&cur);
+
+            if (need_render != 0U
+             || new_left != left_sel
+             || new_right != right_sel)
             {
-                clearing = 1U;
+                left_sel = new_left;
+                right_sel = new_right;
+                Log_DrawHintRow(left_sel, right_sel);
+            }
+            need_render = 0U;
+        }
+
+        while (osMessageQueueGet(cursorHandle, &cur, NULL, 0U) == osOK)
+        {
+            if (cur.button_pressed != 0U && prev_joy_button == 0U)
+            {
+                if (Log_HitLeftPage(&cur) && page > 0U)
+                {
+                    page--;
+                    need_render = 1U;
+                }
+                else if (Log_HitRightPage(&cur) && page + 1U < pages)
+                {
+                    page++;
+                    need_render = 1U;
+                }
+            }
+            prev_joy_button = cur.button_pressed;
+        }
+
+        if (osMessageQueueGet(KeyHandle, &key, NULL, 0U) == osOK)
+        {
+            if (key == '*') return;
+            else if (key == '1') Music_Bg_Toggle();
+            else if (key == '0')
+            {
+                if (Confirm_Ask("Clear Logs") && Log_Clear())
+                {
+                    clearing = 1U;
+                }
+            }
+            else if (key == '#')
+            {
+                if (Log_HitLeftPage(&cur) && page > 0U)
+                {
+                    page--;
+                    need_render = 1U;
+                }
+                else if (Log_HitRightPage(&cur) && page + 1U < pages)
+                {
+                    page++;
+                    need_render = 1U;
+                }
+            }
+            else if (key == '4')
+            {
+                if (page > 0U) page--;
+                need_render = 1U;
+            }
+            else if (key == '6')
+            {
+                if (page + 1U < pages) page++;
+                need_render = 1U;
             }
         }
-        else if (key == '4')
-        {
-            if (page > 0U) page--;
-        }
-        else if (key == '6')
-        {
-            if (page + 1U < pages) page++;
-        }
+
+        CursorView_Track();
+        osDelay(10U);
     }
 }

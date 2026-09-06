@@ -12,6 +12,8 @@
 #include "Sw_Adc_App.h"
 #include "MKey_App.h"
 #include "Music_App.h"
+#include "Log_App.h"
+#include "CursorView.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "main.h"
@@ -97,6 +99,19 @@ static uint8_t Monitor_GetTaskData(UBaseType_t *task_count)
     return 1U;
 }
 
+static uint8_t Monitor_TaskPages(UBaseType_t task_count)
+{
+    uint8_t pages = (uint8_t)((task_count + MONITOR_TASKS_PER_PAGE - 1U)
+                              / MONITOR_TASKS_PER_PAGE);
+    return (pages == 0U) ? 1U : pages;
+}
+
+static uint8_t Monitor_PageCount(UBaseType_t task_count)
+{
+    /* summary + task pages + queue + devices */
+    return (uint8_t)(Monitor_TaskPages(task_count) + 3U);
+}
+
 static void Monitor_DrawHeader(uint8_t page, uint8_t pages)
 {
     OLED_Clear();
@@ -107,8 +122,10 @@ static void Monitor_DrawHeader(uint8_t page, uint8_t pages)
     OLED_PrintNum((uint32_t)pages, 10);
 }
 
-static void Monitor_DrawFooter(void)
+static void Monitor_PresentPage(void)
 {
+    OLED_Display();
+    CursorView_Place();
 }
 
 static void Monitor_DrawSummary(uint8_t page, uint8_t pages, UBaseType_t task_count)
@@ -153,8 +170,7 @@ static void Monitor_DrawSummary(uint8_t page, uint8_t pages, UBaseType_t task_co
     OLED_PrintString("TASKS ");
     OLED_PrintNum((uint32_t)task_count, 10);
 
-    Monitor_DrawFooter();
-    OLED_Display();
+    Monitor_PresentPage();
 }
 
 static void Monitor_DrawTasks(uint8_t page, uint8_t pages, UBaseType_t task_count)
@@ -178,8 +194,46 @@ static void Monitor_DrawTasks(uint8_t page, uint8_t pages, UBaseType_t task_coun
                       * (uint32_t)sizeof(StackType_t), 10);
     }
 
-    Monitor_DrawFooter();
-    OLED_Display();
+    Monitor_PresentPage();
+}
+
+static void Monitor_DrawQueueRow(const char *name, osMessageQueueId_t queue,
+                                 uint8_t y)
+{
+    uint32_t count = (queue != NULL) ? osMessageQueueGetCount(queue) : 0U;
+    uint32_t capacity = (queue != NULL) ? osMessageQueueGetCapacity(queue) : 0U;
+    uint32_t space = (capacity > count) ? (capacity - count) : 0U;
+
+    OLED_SetCursor(0, y);
+    OLED_PrintString(name);
+    OLED_PrintNum(count, 10);
+    OLED_PrintChar('/');
+    OLED_PrintNum(capacity, 10);
+    OLED_PrintString(" SP ");
+    OLED_PrintNum(space, 10);
+}
+
+static void Monitor_DrawQueues(uint8_t page, uint8_t pages)
+{
+    Monitor_DrawHeader(page, pages);
+
+    Monitor_DrawQueueRow("CUR ", cursorHandle, 8U);
+    Monitor_DrawQueueRow("KEY ", KeyHandle, 16U);
+    Monitor_DrawQueueRow("LOG ", LogQueueHandle, 24U);
+
+    Monitor_PresentPage();
+}
+
+static void Monitor_RefreshQueueRow(const char *name, osMessageQueueId_t queue,
+                                    uint8_t y)
+{
+    CursorView_Erase();
+
+    OLED_FillRect(0, y, OLED_WIDTH, 8U, OLED_BLACK);
+    Monitor_DrawQueueRow(name, queue, y);
+    OLED_UpdateRect(0, y, OLED_WIDTH, 8U);
+
+    CursorView_Place();
 }
 
 static const char *const monitor_beat_names[TASKWATCH_COUNT] = {
@@ -213,15 +267,19 @@ static void Monitor_DrawDevices(uint8_t page, uint8_t pages)
     OLED_PrintString("IN ");
     OLED_PrintString(InputDev_IsConnected() ? "YES" : "NO");
 
-    Monitor_DrawFooter();
-    OLED_Display();
+    Monitor_PresentPage();
 }
 
 void Monitor_Sys_Run(void)
 {
     uint8_t page = 0U;
+    uint8_t task_pages = 1U;
+    uint8_t pages = 4U;
+    uint8_t queue_page_ready = 0U;
+    uint32_t queue_slow_refresh = 0U;
     char key;
     uint32_t last_refresh = 0U;
+    CursorMsg_t drop;
 
     for (;;)
     {
@@ -229,19 +287,29 @@ void Monitor_Sys_Run(void)
 
         uint32_t now = HAL_GetTick();
         UBaseType_t task_count = 0U;
-        uint8_t pages;
+        uint8_t queue_page = (uint8_t)(task_pages + 1U);
+        uint32_t refresh_ms = (page == queue_page) ? 25U : 1000U;
 
-        if ((now - last_refresh) >= 1000U)
+        while (osMessageQueueGet(cursorHandle, &drop, NULL, 0U) == osOK) { }
+
+        CursorView_Track();
+
+        if ((now - last_refresh) >= refresh_ms)
         {
             last_refresh = now;
 
             (void)Monitor_GetTaskData(&task_count);
-            pages = (uint8_t)(1U + (task_count + MONITOR_TASKS_PER_PAGE - 1U) / MONITOR_TASKS_PER_PAGE + 1U);
+            task_pages = Monitor_TaskPages(task_count);
+            pages = Monitor_PageCount(task_count);
             if (page >= pages) page = (uint8_t)(pages - 1U);
 
             if (page == 0U)
             {
                 Monitor_DrawSummary(page, pages, task_count);
+            }
+            else if (page <= task_pages)
+            {
+                Monitor_DrawTasks(page, pages, task_count);
             }
             else if (page + 1U == pages)
             {
@@ -249,7 +317,23 @@ void Monitor_Sys_Run(void)
             }
             else
             {
-                Monitor_DrawTasks(page, pages, task_count);
+                if (queue_page_ready == 0U)
+                {
+                    Monitor_DrawQueues(page, pages);
+                    queue_page_ready = 1U;
+                    queue_slow_refresh = now;
+                }
+                else
+                {
+                    Monitor_RefreshQueueRow("CUR ", cursorHandle, 8U);
+
+                    if ((now - queue_slow_refresh) >= 1000U)
+                    {
+                        Monitor_RefreshQueueRow("KEY ", KeyHandle, 16U);
+                        Monitor_RefreshQueueRow("LOG ", LogQueueHandle, 24U);
+                        queue_slow_refresh = now;
+                    }
+                }
             }
         }
 
@@ -262,7 +346,7 @@ void Monitor_Sys_Run(void)
                 UBaseType_t count = uxTaskGetNumberOfTasks();
 
                 if (count > MONITOR_MAX_TASKS) count = MONITOR_MAX_TASKS;
-                pages = (uint8_t)(1U + (count + MONITOR_TASKS_PER_PAGE - 1U) / MONITOR_TASKS_PER_PAGE + 1U);
+                pages = Monitor_PageCount(count);
 
                 if (key == '4')
                 {
@@ -272,6 +356,8 @@ void Monitor_Sys_Run(void)
                 {
                     page++;
                 }
+                queue_page_ready = 0U;
+                queue_slow_refresh = 0U;
                 last_refresh = 0U;
             }
         }

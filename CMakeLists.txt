@@ -73,10 +73,12 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/App/Src/MKey_App.c
     Core/App/Src/NameEdit_App.c
     Core/App/Src/Confirm_App.c
+    Core/App/Src/FileTab.c
     Core/App/Src/Draw_App.c
     Core/App/Src/File_App.c
     Core/App/Src/Music_App.c
     Core/App/Src/Monitor_App.c
+    Core/App/Src/CursorView.c
     Core/App/Src/Set_App.c
     Core/App/Src/Screen_App.c
     Core/App/Src/Log_App.c

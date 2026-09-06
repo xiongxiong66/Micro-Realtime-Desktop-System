@@ -15,12 +15,14 @@
 #include "Draw_App.h"
 #include "NameEdit_App.h"
 #include "Confirm_App.h"
+#include "FileTab.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "sflash.h"
 #include <string.h>
 
 #define FILE_PAGE_ROWS     6U
+#define FILE_MENU_ITEMS    3U
 
 static DrawFile_t file_draw;
 static uint8_t file_pic_idx[DRAW_SECTOR_COUNT];
@@ -98,6 +100,7 @@ static void file_new_picture(void)
 
         if (SFlash_SaveSector(DRAW_SECTOR_BASE + idx, (const uint8_t *)&file_draw, sizeof(DrawFile_t)) == SFLASH_OK)
         {
+            (void)FileTab_AdjustCount(FILE_TAB_KIND_PIC, 1, TASKWATCH_FILE);
             Log_Write(LOG_TYPE_DRAW, "NEW");
             OLED_Clear();
             OLED_SetCursor(16, 28);
@@ -394,7 +397,11 @@ static void file_picture_menu(void)
                     file_load_pic_name(idx, name);
                     if (Confirm_Delete(name))
                     {
-                        SFlash_EraseSector(DRAW_SECTOR_BASE + idx);
+                        if (SFlash_EraseSector(DRAW_SECTOR_BASE + idx) == SFLASH_OK)
+                        {
+                            (void)FileTab_AdjustCount(FILE_TAB_KIND_PIC, -1,
+                                                      TASKWATCH_FILE);
+                        }
                         file_scan_pictures();
                     }
                 }
@@ -479,7 +486,11 @@ static void file_music_menu(void)
             case 'D':
                 if (sel < used_on_page)
                 {
-                    Music_Delete(file_mus_idx[n + sel]);
+                    if (Music_Delete(file_mus_idx[n + sel]) != 0U)
+                    {
+                        (void)FileTab_AdjustCount(FILE_TAB_KIND_MUSIC, -1,
+                                                  TASKWATCH_FILE);
+                    }
                     file_scan_music();
                 }
                 break;
@@ -494,6 +505,66 @@ static void file_music_menu(void)
     }
 }
 
+static void file_table_render(const FileTable_t *tab)
+{
+    uint32_t used = (uint32_t)tab->pic_sectors + (uint32_t)tab->music_sectors;
+    uint32_t free_sectors = (tab->managed_total > used)
+                          ? (uint32_t)tab->managed_total - used : 0U;
+    uint32_t percent = (tab->managed_total > 0U)
+                     ? (free_sectors * 100U) / (uint32_t)tab->managed_total : 0U;
+
+    OLED_Clear();
+    OLED_SetCursor(0, 0);
+    OLED_PrintString("FILE TAB");
+
+    OLED_SetCursor(0, 8);
+    OLED_PrintString("PIC ");
+    OLED_PrintNum((uint32_t)tab->pic_sectors, 10);
+
+    OLED_SetCursor(0, 16);
+    OLED_PrintString("MUS ");
+    OLED_PrintNum((uint32_t)tab->music_sectors, 10);
+
+    OLED_SetCursor(0, 24);
+    OLED_PrintString("FREE ");
+    OLED_PrintNum(free_sectors, 10);
+
+    OLED_SetCursor(0, 32);
+    OLED_PrintString("FREE ");
+    OLED_PrintNum(percent, 10);
+    OLED_PrintChar('%');
+    OLED_Display();
+}
+
+static void file_table_menu(void)
+{
+    FileTable_t tab;
+    char key;
+
+    if (!FileTab_Refresh(TASKWATCH_FILE) || !FileTab_LoadValid(&tab))
+    {
+        OLED_Clear();
+        OLED_SetCursor(16, 28);
+        OLED_PrintString("TABLE ERR");
+        OLED_Display();
+        osDelay(500U);
+        return;
+    }
+
+    for (;;)
+    {
+        file_table_render(&tab);
+
+        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        {
+            continue;
+        }
+
+        if (key == '*') return;
+        else if (key == '1') Music_Bg_Toggle();
+    }
+}
+
 static void file_main_menu_render(uint8_t sel)
 {
     OLED_Clear();
@@ -503,6 +574,8 @@ static void file_main_menu_render(uint8_t sel)
     OLED_PrintString(sel == 0U ? "> MUSIC" : "  MUSIC");
     OLED_SetCursor(0, 24);
     OLED_PrintString(sel == 1U ? "> PICTURE" : "  PICTURE");
+    OLED_SetCursor(0, 32);
+    OLED_PrintString(sel == 2U ? "> FILE TAB" : "  FILE TAB");
     OLED_Display();
 }
 
@@ -523,12 +596,17 @@ static void file_main_menu(void)
         switch (key)
         {
             case '2':
+                sel = (sel == 0U) ? (uint8_t)(FILE_MENU_ITEMS - 1U)
+                                  : (uint8_t)(sel - 1U);
+                break;
             case '8':
-                sel ^= 1U;
+                sel = (sel + 1U >= FILE_MENU_ITEMS) ? 0U
+                                                    : (uint8_t)(sel + 1U);
                 break;
             case '#':
                 if (sel == 0U) file_music_menu();
-                else file_picture_menu();
+                else if (sel == 1U) file_picture_menu();
+                else file_table_menu();
                 break;
             case '1':
                 Music_Bg_Toggle();

@@ -118,6 +118,34 @@ void OLED_DrawPixel(uint8_t x, uint8_t y, uint8_t color) {
     if (color) frame_buffer[idx] |= (uint8_t)(1 << (y % 8));
     else frame_buffer[idx] &= (uint8_t)~(1 << (y % 8));
 }
+void OLED_TogglePixel(uint8_t x, uint8_t y) {
+    if (x >= OLED_WIDTH || y >= OLED_HEIGHT) return;
+    uint16_t idx = (uint16_t)(y / 8) * OLED_WIDTH + x;
+    frame_buffer[idx] ^= (uint8_t)(1 << (y % 8));
+}
+void OLED_UpdateRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h) {
+    uint8_t page, page_start, page_end;
+
+    if (w == 0U || h == 0U) return;
+    if (x >= OLED_WIDTH || y >= OLED_HEIGHT) return;
+    if (w > (uint8_t)(OLED_WIDTH - x)) w = (uint8_t)(OLED_WIDTH - x);
+    if (h > (uint8_t)(OLED_HEIGHT - y)) h = (uint8_t)(OLED_HEIGHT - y);
+
+    page_start = (uint8_t)(y / 8U);
+    page_end = (uint8_t)((y + h - 1U) / 8U);
+
+    for (page = page_start; page <= page_end; page++)
+    {
+        uint8_t addr[] = {
+            (uint8_t)(0xB0U | page),
+            (uint8_t)(x & 0x0FU),
+            (uint8_t)(0x10U | ((x >> 4U) & 0x0FU))
+        };
+
+        OLED_WriteCmdMulti(addr, sizeof(addr));
+        OLED_WriteData(&frame_buffer[(uint16_t)page * OLED_WIDTH + x], w);
+    }
+}
 void OLED_FillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color) {
     if (x >= OLED_WIDTH || y >= OLED_HEIGHT) return;
     if ((uint16_t)x + w > OLED_WIDTH) w = (uint8_t)(OLED_WIDTH - x);

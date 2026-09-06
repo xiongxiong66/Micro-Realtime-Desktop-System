@@ -209,9 +209,7 @@ static void Oled_App_Run(AppId_t app)
 {
     if (app == APP_MONITOR)
     {
-        Cursor_Suspend();
         Monitor_Sys_Run();
-        Cursor_Resume();
     }
     else if (app == APP_DRAW)
     {
@@ -238,9 +236,7 @@ static void Oled_App_Run(AppId_t app)
     }
     else if (app == APP_LOG)
     {
-        Cursor_Suspend();
         Log_View_Run();
-        Cursor_Resume();
     }
 
 }

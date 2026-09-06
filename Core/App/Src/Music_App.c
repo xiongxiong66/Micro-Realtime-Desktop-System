@@ -10,6 +10,7 @@
 #include "Oled_App.h"
 #include "Set_App.h"
 #include "MusicFile.h"
+#include "FileTab.h"
 #include "NameEdit_App.h"
 #include "Confirm_App.h"
 #include "buzzer.h"
@@ -595,7 +596,7 @@ uint8_t Music_NameUsed(const char *new_name, const char *old_name)
     return 0U;
 }
 
-void Music_Delete(uint8_t idx)
+uint8_t Music_Delete(uint8_t idx)
 {
     char name[16];
 
@@ -605,8 +606,10 @@ void Music_Delete(uint8_t idx)
         if (SFlash_EraseSector(MUSIC_SECTOR_BASE + idx) == SFLASH_OK)
         {
             Log_Write(LOG_TYPE_MUSIC, "DELETED");
+            return 1U;
         }
     }
+    return 0U;
 }
 
 static void music_selection(void)
@@ -682,7 +685,11 @@ static void music_selection(void)
             case 'D':
                 if (sel < used_on_page)
                 {
-                    Music_Delete(music_used[n + sel]);
+                    if (Music_Delete(music_used[n + sel]) != 0U)
+                    {
+                        (void)FileTab_AdjustCount(FILE_TAB_KIND_MUSIC, -1,
+                                                  TASKWATCH_OLED);
+                    }
                 }
                 break;
             case '1':

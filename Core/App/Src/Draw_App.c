@@ -12,6 +12,7 @@
 #include "Music_App.h"
 #include "Set_App.h"
 #include "Log_App.h"
+#include "FileTab.h"
 #include "NameEdit_App.h"
 #include "Confirm_App.h"
 #include "cmsis_os.h"
@@ -630,12 +631,16 @@ static void draw_edit_render(int16_t cx, int16_t cy)
     OLED_Display();
 }
 
-static void draw_save(uint8_t idx)
+static void draw_save(uint8_t idx, uint8_t is_new)
 {
     draw_file.checksum = DrawFile_ComputeChecksum(&draw_file);
 
     if (SFlash_SaveSector(DRAW_SECTOR_BASE + idx, (const uint8_t *)&draw_file, sizeof(DrawFile_t)) == SFLASH_OK)
     {
+        if (is_new != 0U)
+        {
+            (void)FileTab_AdjustCount(FILE_TAB_KIND_PIC, 1, TASKWATCH_OLED);
+        }
         OLED_Clear();
         OLED_SetCursor(20, 28);
         OLED_PrintString("SAVED");
@@ -757,7 +762,7 @@ static void draw_edit(uint8_t idx, uint8_t is_new)
                         memcpy(old_name, draw_file.name, sizeof(old_name));
                         if (NameEdit_Run(draw_file.name, (uint8_t)sizeof(draw_file.name), !is_new, Draw_NameUsed))
                         {
-                            draw_save(idx);
+                            draw_save(idx, is_new);
                             if (is_new)
                             {
                                 Log_Write(LOG_TYPE_DRAW, "NEW");
@@ -923,9 +928,13 @@ static void draw_selection(void)
                     draw_load_name(idx, name);
                     if (Confirm_Delete(name))
                     {
-                        SFlash_EraseSector(DRAW_SECTOR_BASE + idx);
+                        if (SFlash_EraseSector(DRAW_SECTOR_BASE + idx) == SFLASH_OK)
+                        {
+                            (void)FileTab_AdjustCount(FILE_TAB_KIND_PIC, -1,
+                                                      TASKWATCH_OLED);
+                            Log_Write(LOG_TYPE_DRAW, "DELETED");
+                        }
                         refresh = 1U;
-                        Log_Write(LOG_TYPE_DRAW, "DELETED");
                     }
                 }
                 break;
