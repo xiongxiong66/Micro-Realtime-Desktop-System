@@ -94,6 +94,8 @@ static void file_new_picture(void)
 
     if (NameEdit_Run(file_draw.name, (uint8_t)sizeof(file_draw.name), 1U, Draw_NameUsed))
     {
+        file_draw.checksum = DrawFile_ComputeChecksum(&file_draw);
+
         if (SFlash_SaveSector(DRAW_SECTOR_BASE + idx, (const uint8_t *)&file_draw, sizeof(DrawFile_t)) == SFLASH_OK)
         {
             Log_Write(LOG_TYPE_DRAW, "NEW");
@@ -130,35 +132,36 @@ static void file_load_music_name(uint8_t idx, char *name)
 
 static void file_scan_pictures(void)
 {
-    uint8_t hdr[16];
-
     file_pic_count = 0U;
-    for (uint16_t i = 0; i < DRAW_SECTOR_COUNT; i++)
+    for (uint16_t i = 0U; i < DRAW_SECTOR_COUNT; i++)
     {
-        if (SFlash_Read((uint32_t)(DRAW_SECTOR_BASE + i) * SFLASH_SECTOR_SIZE, hdr, 16U) == SFLASH_OK
-         && hdr[0] == DRAW_MAGIC0 && hdr[1] == DRAW_MAGIC1
-         && hdr[2] == DRAW_MAGIC2 && hdr[3] == DRAW_MAGIC3)
+        if (DrawFile_MagicValid((uint16_t)(DRAW_SECTOR_BASE + i)))
         {
             file_pic_idx[file_pic_count++] = (uint8_t)i;
         }
+        if ((i & 0x1FU) == 0x1FU)
+        {
+            TaskWatch_Beat(TASKWATCH_FILE);
+        }
     }
+    TaskWatch_Beat(TASKWATCH_FILE);
 }
 
 static void file_scan_music(void)
 {
-    uint8_t hdr[MUSIC_HEADER_BYTES];
-
     file_mus_count = 0U;
     for (uint16_t i = 0; i < MUSIC_SECTOR_COUNT; i++)
     {
-        if (SFlash_Read((uint32_t)(MUSIC_SECTOR_BASE + i) * SFLASH_SECTOR_SIZE,
-                        hdr, MUSIC_HEADER_BYTES) == SFLASH_OK
-         && hdr[0] == MUSIC_MAGIC0 && hdr[1] == MUSIC_MAGIC1
-         && hdr[2] == MUSIC_MAGIC2 && hdr[3] == MUSIC_MAGIC3)
+        if (MusicFile_MagicValid((uint16_t)(MUSIC_SECTOR_BASE + i)))
         {
             file_mus_idx[file_mus_count++] = (uint8_t)i;
         }
+        if ((i & 0x3FU) == 0x3FU)
+        {
+            TaskWatch_Beat(TASKWATCH_FILE);
+        }
     }
+    TaskWatch_Beat(TASKWATCH_FILE);
 }
 
 static void file_pic_render(uint8_t page, uint8_t sel)
@@ -281,13 +284,15 @@ static void file_view_picture(void)
 
 static void file_rename_picture(uint8_t idx)
 {
-    if (SFlash_LoadSector(DRAW_SECTOR_BASE + idx, (uint8_t *)&file_draw, sizeof(DrawFile_t)) != SFLASH_OK)
+    if (!DrawFile_LoadValid((uint16_t)(DRAW_SECTOR_BASE + idx), &file_draw))
     {
         return;
     }
 
     if (NameEdit_Run(file_draw.name, (uint8_t)sizeof(file_draw.name), 1U, Draw_NameUsed))
     {
+        file_draw.checksum = DrawFile_ComputeChecksum(&file_draw);
+
         if (SFlash_SaveSector(DRAW_SECTOR_BASE + idx, (const uint8_t *)&file_draw, sizeof(DrawFile_t)) == SFLASH_OK)
         {
             OLED_Clear();
@@ -360,9 +365,17 @@ static void file_picture_menu(void)
                 else if (sel < used_on_page)
                 {
                     uint8_t idx = file_pic_idx[n + sel];
-                    if (SFlash_LoadSector(DRAW_SECTOR_BASE + idx, (uint8_t *)&file_draw, sizeof(DrawFile_t)) == SFLASH_OK)
+                    if (DrawFile_LoadValid((uint16_t)(DRAW_SECTOR_BASE + idx), &file_draw))
                     {
                         file_view_picture();
+                    }
+                    else
+                    {
+                        OLED_Clear();
+                        OLED_SetCursor(16, 28);
+                        OLED_PrintString("INVALID");
+                        OLED_Display();
+                        osDelay(300U);
                     }
                 }
                 break;

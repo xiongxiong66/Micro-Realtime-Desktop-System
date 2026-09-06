@@ -57,19 +57,19 @@ static const char *const music_perf_log_tab[8U] = {
 
 static void music_scan(void)
 {
-    uint8_t hdr[MUSIC_HEADER_BYTES];
-
     music_used_count = 0U;
     for (uint16_t i = 0U; i < MUSIC_SECTOR_COUNT; i++)
     {
-        if (SFlash_Read((uint32_t)(MUSIC_SECTOR_BASE + i) * SFLASH_SECTOR_SIZE,
-                        hdr, MUSIC_HEADER_BYTES) == SFLASH_OK
-         && hdr[0] == MUSIC_MAGIC0 && hdr[1] == MUSIC_MAGIC1
-         && hdr[2] == MUSIC_MAGIC2 && hdr[3] == MUSIC_MAGIC3)
+        if (MusicFile_MagicValid((uint16_t)(MUSIC_SECTOR_BASE + i)))
         {
             music_used[music_used_count++] = (uint8_t)i;
         }
+        if ((i & 0x3FU) == 0x3FU)
+        {
+            TaskWatch_Beat(TASKWATCH_OLED);
+        }
     }
+    TaskWatch_Beat(TASKWATCH_OLED);
 }
 
 static void music_load_name(uint8_t idx, char *name)
@@ -258,9 +258,20 @@ static void Music_Play_Render(const char *name)
 
 void Music_Play(uint8_t idx)
 {
+    uint8_t hdr[MUSIC_HEADER_BYTES];
     char name[16];
     char key;
     uint32_t last_render = 0U;
+
+    if (!MusicFile_HeaderValid((uint16_t)(MUSIC_SECTOR_BASE + idx), hdr))
+    {
+        OLED_Clear();
+        OLED_SetCursor(16, 28);
+        OLED_PrintString("INVALID");
+        OLED_Display();
+        osDelay(300U);
+        return;
+    }
 
     Music_Bg_StopAll();
     Music_Bg_Prepare(idx);
@@ -543,6 +554,7 @@ void Music_Rename(uint8_t idx)
     name_len = (uint8_t)(strlen(name) + 1U);
     if (name_len > MUSIC_NAME_LEN) name_len = MUSIC_NAME_LEN;
     memcpy(&hdr[4U], name, name_len);
+    hdr[18U] = MusicFile_ComputeChecksum((uint16_t)(MUSIC_SECTOR_BASE + idx), hdr);
 
     if (SFlash_EraseSector(MUSIC_SCRATCH_SECTOR) != SFLASH_OK) return;
     if (SFlash_Write(scratch, hdr, MUSIC_HEADER_BYTES) != SFLASH_OK) return;

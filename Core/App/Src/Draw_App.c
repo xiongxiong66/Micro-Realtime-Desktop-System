@@ -57,22 +57,22 @@ static void draw_make_name(uint8_t idx, char *name)
     name[5] = (char)('0' + idx % 10U);
     name[6] = '\0';
 }
-//@brief:扫描所有图片存储扇区，找出已使用的扇区索引，并存入draw_used数组中，同时更新draw_used_count计数
+//@brief:扫描所有图片存储扇区，只认魔数，打开文件时才做完整校验
 static void draw_scan(void)
 {
-    uint8_t hdr[16];
-
     draw_used_count = 0U;
-    for (uint16_t i = 0; i < DRAW_SECTOR_COUNT; i++)
+    for (uint16_t i = 0U; i < DRAW_SECTOR_COUNT; i++)
     {
-        //  读取每个扇区的前16字节，检查是否为有效图片文件，如果是，则将索引存入draw_used数组中
-        if (SFlash_Read((uint32_t)(DRAW_SECTOR_BASE + i) * SFLASH_SECTOR_SIZE, hdr, 16U) == SFLASH_OK
-         && hdr[0] == DRAW_MAGIC0 && hdr[1] == DRAW_MAGIC1
-         && hdr[2] == DRAW_MAGIC2 && hdr[3] == DRAW_MAGIC3)
+        if (DrawFile_MagicValid((uint16_t)(DRAW_SECTOR_BASE + i)))
         {
             draw_used[draw_used_count++] = (uint8_t)i;
         }
+        if ((i & 0x1FU) == 0x1FU)
+        {
+            TaskWatch_Beat(TASKWATCH_OLED);
+        }
     }
+    TaskWatch_Beat(TASKWATCH_OLED);
 }
 //@brief:根据索引加载图片文件到draw_file结构体中，如果索引无效或读取失败，则将默认名称写入name，如果有效，则将图片名称写入name
 static void draw_load_name(uint8_t idx, char *name)
@@ -632,6 +632,8 @@ static void draw_edit_render(int16_t cx, int16_t cy)
 
 static void draw_save(uint8_t idx)
 {
+    draw_file.checksum = DrawFile_ComputeChecksum(&draw_file);
+
     if (SFlash_SaveSector(DRAW_SECTOR_BASE + idx, (const uint8_t *)&draw_file, sizeof(DrawFile_t)) == SFLASH_OK)
     {
         OLED_Clear();
@@ -832,6 +834,7 @@ static void draw_selection(void)
 {
     uint8_t page = 0U;
     uint8_t sel = 0U;
+    uint8_t refresh = 1U;
     char key;
 
     for (;;)
@@ -840,7 +843,12 @@ static void draw_selection(void)
         uint8_t used_on_page;
         uint16_t n;
 
-        draw_scan();
+        TaskWatch_Beat(TASKWATCH_OLED);
+        if (refresh != 0U)
+        {
+            draw_scan();
+            refresh = 0U;
+        }
 
         pages = (draw_used_count + DRAW_PAGE_ROWS - 1U) / DRAW_PAGE_ROWS;
         if (pages == 0U) pages = 1U;
@@ -887,15 +895,24 @@ static void draw_selection(void)
                 if (sel < used_on_page)
                 {
                     uint8_t idx = draw_used[n + sel];
-                    if (SFlash_LoadSector(DRAW_SECTOR_BASE + idx, (uint8_t *)&draw_file, sizeof(DrawFile_t)) == SFLASH_OK)
+                    if (DrawFile_LoadValid((uint16_t)(DRAW_SECTOR_BASE + idx), &draw_file))
                     {
                         draw_edit(idx, 0U);
+                    }
+                    else
+                    {
+                        OLED_Clear();
+                        OLED_SetCursor(16, 28);
+                        OLED_PrintString("INVALID");
+                        OLED_Display();
+                        osDelay(300U);
                     }
                 }
                 else
                 {
                     draw_new();
                 }
+                refresh = 1U;
                 break;
             case 'D':
                 if (sel < used_on_page)
@@ -907,6 +924,7 @@ static void draw_selection(void)
                     if (Confirm_Delete(name))
                     {
                         SFlash_EraseSector(DRAW_SECTOR_BASE + idx);
+                        refresh = 1U;
                         Log_Write(LOG_TYPE_DRAW, "DELETED");
                     }
                 }

@@ -18,11 +18,16 @@
 #define DRAW_MAGIC2  'W'
 #define DRAW_MAGIC3  '1'
 
-//前4个字节为图片标志，接下来的12个字节为图片名称，剩余的部分为图片数据，图片数据大小为OLED_BUFFER_SIZE
+/* 前4字节为图片标志，接下来12字节名称，1字节checksum，剩余为图片数据 */
 typedef struct {
     uint8_t magic[4];
     char name[12];
+    uint8_t checksum;
     uint8_t data[OLED_BUFFER_SIZE];
 } DrawFile_t;
+
+uint8_t DrawFile_ComputeChecksum(const DrawFile_t *file);
+uint8_t DrawFile_MagicValid(uint16_t sector);
+uint8_t DrawFile_LoadValid(uint16_t sector, DrawFile_t *out);
 
 #endif /* __IMG_FILE_H */
