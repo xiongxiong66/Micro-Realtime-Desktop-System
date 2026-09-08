@@ -10,6 +10,7 @@
 #include "mkey.h"
 #include "keypad.h"
 #include "Screen_App.h"
+#include "TaskSnap.h"
 
 #define MKEY_SCAN_PERIOD_MS       10U
 #define MKEY_SCAN_PERIOD_SLEEP_MS 50U
@@ -38,9 +39,25 @@ void MKey_Task_Sys(void)
             }
             else
             {
+                uint8_t was_off = Screen_Sys_IsOff();
+
                 Screen_Sys_Wake();
-                if (osMessageQueuePut(KeyHandle, &key, 0U, 0U) == osOK) mkey_events++;
-                else mkey_dropped++;
+                if (was_off == 0U && key == 'B' && Screen_Sys_ForceOffEnabled())
+                {
+                    (void)TaskSnap_Record();
+                }
+                else if (was_off != 0U && Screen_Sys_IsLocking())
+                {
+                    /* 唤醒按键只负责点亮/进入锁屏，不投递给登录前的应用 */
+                }
+                else if (osMessageQueuePut(KeyHandle, &key, 0U, 0U) == osOK)
+                {
+                    mkey_events++;
+                }
+                else
+                {
+                    mkey_dropped++;
+                }
             }
         }
 

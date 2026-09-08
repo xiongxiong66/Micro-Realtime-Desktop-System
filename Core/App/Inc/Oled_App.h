@@ -10,5 +10,6 @@ extern osMessageQueueId_t KeyHandle;
 extern osThreadId_t oledHandle;
 
 void Oled_Task_Sys();
+void Oled_Login_Run(void);
 
 #endif

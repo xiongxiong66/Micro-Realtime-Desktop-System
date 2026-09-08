@@ -11,6 +11,7 @@
 
 #define SETTINGS_SECTOR_BASE  0U
 #define SETTINGS_LEVELS       3U
+#define SETTINGS_LOCK_LEVELS  3U
 #define SETTINGS_PIN_MAX_LEN  10U       //密码最大长度
 
 typedef struct {
@@ -19,6 +20,7 @@ typedef struct {
     uint8_t brightness;    /* 0 low, 1 medium, 2 high */
     uint8_t volume;        /* 0 mute, 1..5 louder */
     uint8_t screen_timeout;/* 0..4 -> 10/15/20/25/30 s */
+    uint8_t lock_delay;    /* 0..2 -> 45/60/120 s */
     char password[SETTINGS_PIN_MAX_LEN + 1U];
 } SetConfig_t;
 
@@ -34,6 +36,7 @@ uint8_t Set_Sys_GetSensitivity(void);
 uint8_t Set_Sys_GetBrightness(void);
 uint8_t Set_Sys_GetVolume(void);
 uint32_t Set_Sys_GetScreenTimeoutMs(void);
+uint32_t Set_Sys_GetLockDelayMs(void);
 uint8_t Set_Sys_CheckPin(const char *pin);
 void Set_Sys_ChangePin(const char *pin);
 uint8_t Set_Sys_LoadValid(void);

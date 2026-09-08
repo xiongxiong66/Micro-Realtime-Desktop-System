@@ -13,6 +13,7 @@
 #include "TaskErr.h"
 #include "Oled_App.h"
 #include "CursorView.h"
+#include "TaskSnap.h"
 #include "Music_App.h"
 #include "Set_App.h"
 #include "cmsis_os.h"
@@ -582,7 +583,7 @@ static void Log_DrawHintRow(uint8_t left_sel, uint8_t right_sel)
     CursorView_Place();
 }
 
-void Log_View_Run(void)
+static void Log_LogViewer_Run(void)
 {
     uint16_t page = 0U;
     uint16_t pages = 1U;
@@ -707,5 +708,227 @@ void Log_View_Run(void)
 
         CursorView_Track();
         osDelay(10U);
+    }
+}
+
+static void Log_MenuRender(uint8_t sel)
+{
+    OLED_Clear();
+    OLED_SetCursor(0, 0);
+    OLED_PrintString("LOG");
+    OLED_SetCursor(0, 16);
+    OLED_PrintString(sel == 0U ? "> LOG VIEW" : "  LOG VIEW");
+    OLED_SetCursor(0, 24);
+    OLED_PrintString(sel == 1U ? "> TASK VIEW" : "  TASK VIEW");
+    OLED_Display();
+}
+
+static void Log_TaskViewRender(const TaskSnapHeader_t *header,
+                               uint8_t entry_count, uint8_t page,
+                               uint8_t snap_ord, uint8_t snap_count)
+{
+    uint8_t pages = (uint8_t)(1U + (entry_count + LOG_PAGE_ROWS - 1U)
+                                  / LOG_PAGE_ROWS);
+    uint8_t start;
+    uint8_t i;
+
+    if (page >= pages) page = (uint8_t)(pages - 1U);
+
+    OLED_Clear();
+    OLED_SetCursor(0, 0);
+    OLED_PrintString("TSK ");
+    OLED_PrintNum((uint32_t)snap_ord + 1U, 10);
+    OLED_PrintChar('/');
+    OLED_PrintNum((uint32_t)snap_count, 10);
+    OLED_PrintString(" #");
+    OLED_PrintNum(header->seq, 10);
+
+    if (page == 0U)
+    {
+        TaskSnapSummary_t summary;
+
+        if (TaskSnap_GetSummary(snap_ord, &summary))
+        {
+            OLED_SetCursor(0, 8);
+            OLED_PrintString("HEAP ");
+            OLED_PrintNum(summary.heap_free, 10);
+
+            OLED_SetCursor(0, 16);
+            OLED_PrintString("ERR ");
+            OLED_PrintNum(summary.error_count, 10);
+
+            OLED_SetCursor(0, 24);
+            OLED_PrintString("EV ");
+            OLED_PrintNum(summary.event_count, 10);
+            OLED_PrintString(" DRP ");
+            OLED_PrintNum(summary.dropped_count, 10);
+
+            OLED_SetCursor(0, 32);
+            OLED_PrintString("CUR ");
+            OLED_PrintNum((uint32_t)summary.cur_queue, 10);
+            OLED_PrintString(" KEY ");
+            OLED_PrintNum((uint32_t)summary.key_queue, 10);
+
+            OLED_SetCursor(0, 40);
+            OLED_PrintString("LOG ");
+            OLED_PrintNum((uint32_t)summary.log_queue, 10);
+        }
+    }
+    else
+    {
+        start = (uint8_t)((page - 1U) * LOG_PAGE_ROWS);
+
+        for (i = 0U; i < LOG_PAGE_ROWS; i++)
+        {
+            uint8_t idx = (uint8_t)(start + i);
+
+            if (idx >= entry_count) break;
+
+            OLED_SetCursor(0, (uint8_t)(8U + i * 8U));
+            {
+                TaskSnapEntry_t entry;
+
+                if (TaskSnap_GetEntry(snap_ord, idx, &entry))
+                {
+                    OLED_PrintString(entry.name);
+                    OLED_PrintChar(' ');
+                    OLED_PrintChar((char)entry.state);
+                    OLED_PrintChar(' ');
+                    OLED_PrintNum((uint32_t)entry.stack_free, 10);
+                }
+            }
+        }
+    }
+
+    OLED_SetCursor(0, 56);
+    OLED_PrintString("< ");
+    OLED_PrintNum((uint32_t)page + 1U, 10);
+    OLED_PrintChar('/');
+    OLED_PrintNum((uint32_t)pages, 10);
+    OLED_PrintString(" >");
+    OLED_Display();
+}
+
+static void Log_TaskViewer_Run(void)
+{
+    uint8_t snap_count = 0U;
+    uint8_t snap_ord = 0U;
+    uint8_t page = 0U;
+    uint8_t need_render = 1U;
+    char key;
+
+    for (;;)
+    {
+        TaskSnapHeader_t header;
+        uint8_t entry_count = 0U;
+        uint8_t pages;
+        CursorMsg_t drop;
+
+        TaskWatch_Beat(TASKWATCH_OLED);
+        while (osMessageQueueGet(cursorHandle, &drop, NULL, 0U) == osOK) { }
+
+        snap_count = TaskSnap_GetValidCount();
+        if (snap_count == 0U)
+        {
+            if (need_render != 0U)
+            {
+                OLED_Clear();
+                OLED_SetCursor(0, 8);
+                OLED_PrintString("No Task Log");
+                OLED_SetCursor(0, 24);
+                OLED_PrintString("Press B to save");
+                OLED_Display();
+                need_render = 0U;
+            }
+
+            if (osMessageQueueGet(KeyHandle, &key, NULL, 100U) != osOK) continue;
+            if (key == '*') return;
+            if (key == '1') Music_Bg_Toggle();
+            need_render = 1U;
+            continue;
+        }
+
+        if (snap_ord >= snap_count) snap_ord = (uint8_t)(snap_count - 1U);
+
+        if (!TaskSnap_GetSnapshotHeader(snap_ord, &header))
+        {
+            snap_count = 0U;
+            need_render = 1U;
+            continue;
+        }
+        entry_count = header.count;
+
+        pages = (uint8_t)(1U + (entry_count + LOG_PAGE_ROWS - 1U)
+                              / LOG_PAGE_ROWS);
+        if (page >= pages) page = (uint8_t)(pages - 1U);
+
+        if (need_render != 0U)
+        {
+            Log_TaskViewRender(&header, entry_count, page, snap_ord, snap_count);
+            need_render = 0U;
+        }
+
+        if (osMessageQueueGet(KeyHandle, &key, NULL, 100U) != osOK) continue;
+
+        if (key == '*') return;
+        else if (key == '1') Music_Bg_Toggle();
+        else if (key == '2')
+        {
+            if (page > 0U) page--;
+            need_render = 1U;
+        }
+        else if (key == '8')
+        {
+            if (page + 1U < pages) page++;
+            need_render = 1U;
+        }
+        else if (key == '4')
+        {
+            if (snap_ord > 0U)
+            {
+                snap_ord--;
+                page = 0U;
+                need_render = 1U;
+            }
+        }
+        else if (key == '6')
+        {
+            if (snap_ord + 1U < snap_count)
+            {
+                snap_ord++;
+                page = 0U;
+                need_render = 1U;
+            }
+        }
+        else
+        {
+            need_render = 1U;
+        }
+    }
+}
+
+void Log_View_Run(void)
+{
+    uint8_t sel = 0U;
+    char key;
+    CursorMsg_t drop;
+
+    for (;;)
+    {
+        TaskWatch_Beat(TASKWATCH_OLED);
+        while (osMessageQueueGet(cursorHandle, &drop, NULL, 0U) == osOK) { }
+
+        Log_MenuRender(sel);
+
+        if (osMessageQueueGet(KeyHandle, &key, NULL, 100U) != osOK) continue;
+
+        if (key == '*') return;
+        else if (key == '1') Music_Bg_Toggle();
+        else if (key == '2' || key == '8') sel ^= 1U;
+        else if (key == '#')
+        {
+            if (sel == 0U) Log_LogViewer_Run();
+            else Log_TaskViewer_Run();
+        }
     }
 }

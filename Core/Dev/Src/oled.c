@@ -176,6 +176,9 @@ void OLED_PrintStringColor(uint8_t x, uint8_t y, const char *str, uint8_t color)
 void OLED_Blit(const uint8_t *data) {
     if (data) memcpy(frame_buffer, data, OLED_BUFFER_SIZE);
 }
+void OLED_Capture(uint8_t *dest) {
+    if (dest) memcpy(dest, frame_buffer, OLED_BUFFER_SIZE);
+}
 void OLED_SetCursor(uint8_t x, uint8_t y) {
     cursor_x = (x < OLED_WIDTH) ? x : (OLED_WIDTH - 1);
     cursor_y = (y < OLED_HEIGHT) ? y : (OLED_HEIGHT - 1);

@@ -15,6 +15,7 @@
 static void Oled_Lock_Sys(void)
 {
     char key;
+    CursorMsg_t cur;
 
     /* Discard any keys queued during the previous input. */
     //清空Key消息队列，队列有数据就进入空循环，没有则退出
@@ -22,13 +23,20 @@ static void Oled_Lock_Sys(void)
     //10s锁定
     for (uint8_t sec = PIN_LOCK_SEC; sec > 0U; sec--)
     {
+        uint8_t tick;
+
         OLED_Clear();
         OLED_SetCursor(20, 23);
         OLED_PrintString("Lock:");
         OLED_SetCursor(56, 23);
         OLED_PrintNum(sec, 10);
         OLED_Display();
-        osDelay(1000U);
+        for (tick = 0U; tick < 10U; tick++)
+        {
+            while (osMessageQueueGet(KeyHandle, &key, NULL, 0U) == osOK) { }
+            while (osMessageQueueGet(cursorHandle, &cur, NULL, 0U) == osOK) { }
+            osDelay(100U);
+        }
     }
 
     /* Discard keys pressed while locked. */
@@ -36,7 +44,7 @@ static void Oled_Lock_Sys(void)
     while (osMessageQueueGet(KeyHandle, &key, NULL, 0U) == osOK) { }
 }
 
-static void Oled_Login_Sys(void)
+void Oled_Login_Run(void)
 {
     char pin_buf[SETTINGS_PIN_MAX_LEN + 1U] = {0};      //密码缓冲区，+1是为了存放字符串结束符'\0'
     uint8_t pin_len = 0;                                //密码长度
@@ -44,7 +52,8 @@ static void Oled_Login_Sys(void)
     CursorMsg_t cur;
     char key;                                           //按键输入缓冲区
 
-  
+    while (osMessageQueueGet(KeyHandle, &key, NULL, 0U) == osOK) { }
+    while (osMessageQueueGet(cursorHandle, &cur, NULL, 0U) == osOK) { }
 
     OLED_Clear();
     OLED_SetCursor(20, 23);
@@ -53,8 +62,10 @@ static void Oled_Login_Sys(void)
 
     for (;;)
     {
+        while (osMessageQueueGet(cursorHandle, &cur, NULL, 0U) == osOK) { }
+
         //阻塞等待，如果队列中没有数据，则一直等待，直到有数据为止
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (osMessageQueueGet(KeyHandle, &key, NULL, 20U) != osOK)
         {
             continue;
         }
@@ -130,7 +141,7 @@ void Oled_Task_Sys(void)
 
     if (state == Statue_NO)
     {
-        Oled_Login_Sys();
+        Oled_Login_Run();
     }
 
     Screen_Sys_SetForceOff(1U);

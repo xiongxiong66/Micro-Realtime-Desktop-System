@@ -623,11 +623,7 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+  Screen_Lock_Task_Sys();
   /* USER CODE END 5 */
 }
 

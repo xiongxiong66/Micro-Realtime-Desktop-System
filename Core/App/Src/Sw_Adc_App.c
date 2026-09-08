@@ -181,7 +181,9 @@ void Sw_Adc_Task_Sys() {
     msg.cursor_y       = cursor_y;
     msg.button_pressed = button_pressed;
 
-    if (cursor_x != last_sent_x || cursor_y != last_sent_y || button_pressed != last_sent_button)
+    if (Screen_Sys_IsLocking() == 0U
+     && (cursor_x != last_sent_x || cursor_y != last_sent_y
+      || button_pressed != last_sent_button))
     {
         if (osMessageQueuePut(cursorHandle, &msg, 0, 0) == osOK)
         {

@@ -38,6 +38,10 @@ typedef struct {
     uint8_t checksum;
 } SetRecord_t;
 
+static const uint8_t set_lock_seconds_tab[SETTINGS_LOCK_LEVELS] = {
+    45U, 60U, 120U
+};
+
 static SetConfig_t g_set_config;
 static uint8_t set_load_valid;
 
@@ -64,6 +68,8 @@ static uint8_t Set_RecordValid(const SetRecord_t *rec)
 
 static void Set_RecordToConfig(const SetRecord_t *rec)
 {
+    uint8_t packed = rec->reserved;
+
     g_set_config.cursor_size = rec->cursor_size;
     g_set_config.sensitivity = rec->sensitivity;
     g_set_config.brightness = rec->brightness;
@@ -75,10 +81,27 @@ static void Set_RecordToConfig(const SetRecord_t *rec)
     if (g_set_config.cursor_size >= SETTINGS_LEVELS) g_set_config.cursor_size = 1U;
     if (g_set_config.sensitivity >= SETTINGS_LEVELS) g_set_config.sensitivity = 1U;
     if (g_set_config.brightness >= SETTINGS_LEVELS) g_set_config.brightness = 1U;
-    if (rec->reserved != SETTINGS_VERSION)
+    if (packed >= 0x10U)
     {
-        /* 旧版记录：0 静音、1 极小、其余归并到最大档 */
-        if (g_set_config.volume > 1U) g_set_config.volume = 5U;
+        if ((packed >> 4U) != SETTINGS_VERSION)
+        {
+            /* 新版但版本不匹配：0 静音、1 极小、其余归并到最大档 */
+            if (g_set_config.volume > 1U) g_set_config.volume = 5U;
+        }
+        g_set_config.lock_delay = (uint8_t)(packed & 0x0FU);
+        if (g_set_config.lock_delay >= SETTINGS_LOCK_LEVELS)
+        {
+            g_set_config.lock_delay = 0U;
+        }
+    }
+    else
+    {
+        /* 旧版记录 reserved 直接存版本号，没有锁屏字段 */
+        if (packed != SETTINGS_VERSION)
+        {
+            if (g_set_config.volume > 1U) g_set_config.volume = 5U;
+        }
+        g_set_config.lock_delay = 0U;
     }
     if (g_set_config.volume >= 6U) g_set_config.volume = 5U;
     if (g_set_config.screen_timeout >= 5U) g_set_config.screen_timeout = 2U;
@@ -118,6 +141,7 @@ void Set_Sys_Load(void)
     g_set_config.brightness = 1U;
     g_set_config.volume = 5U;
     g_set_config.screen_timeout = 2U;
+    g_set_config.lock_delay = 0U;
     memset(g_set_config.password, 0, sizeof(g_set_config.password));
     strcpy(g_set_config.password, "12345");
     Set_Sys_Save();
@@ -140,7 +164,8 @@ void Set_Sys_Save(void)
     rec.screen_timeout = g_set_config.screen_timeout;
     memset(rec.password, 0, sizeof(rec.password));
     memcpy(rec.password, g_set_config.password, SETTINGS_PIN_MAX_LEN + 1U);
-    rec.reserved = SETTINGS_VERSION;
+    rec.reserved = (uint8_t)((SETTINGS_VERSION << 4U)
+                           | (g_set_config.lock_delay & 0x0FU));
     rec.checksum = Set_Checksum(&rec);
 
     if (SFlash_Init() != SFLASH_OK)
@@ -221,6 +246,13 @@ uint8_t Set_Sys_GetVolume(void)
 uint32_t Set_Sys_GetScreenTimeoutMs(void)
 {
     return (uint32_t)(10U + (uint32_t)g_set_config.screen_timeout * 5U) * 1000U;
+}
+
+uint32_t Set_Sys_GetLockDelayMs(void)
+{
+    uint8_t level = (g_set_config.lock_delay < SETTINGS_LOCK_LEVELS)
+                  ? g_set_config.lock_delay : 0U;
+    return (uint32_t)set_lock_seconds_tab[level] * 1000U;
 }
 
 //pin正确返回1U，pin错误或为空返回0U
@@ -381,6 +413,11 @@ static void Set_Render(uint8_t page, uint8_t sel)
         OLED_PrintString(sel == 1U ? ">" : " ");
         OLED_PrintString("TIME");
 
+        OLED_SetCursor(0, 24);
+        OLED_PrintString(sel == 2U ? ">" : " ");
+        OLED_PrintString("LOCK ");
+        OLED_PrintNum((uint32_t)set_lock_seconds_tab[g_set_config.lock_delay], 10);
+        OLED_PrintString("s");
     }
     OLED_Display();
 }
@@ -408,6 +445,22 @@ static void Set_Change(uint8_t sel, int8_t dir)
 
     if (sel == 2U) Set_Sys_ApplyBrightness();
     if (sel == 3U) Set_Sys_ApplyVolume();
+    Set_Sys_Save();
+}
+
+static void Set_ChangeLock(int8_t dir)
+{
+    if (dir > 0)
+    {
+        g_set_config.lock_delay = (g_set_config.lock_delay + 1U < SETTINGS_LOCK_LEVELS)
+                                ? (uint8_t)(g_set_config.lock_delay + 1U) : 0U;
+    }
+    else
+    {
+        g_set_config.lock_delay = (g_set_config.lock_delay > 0U)
+                                ? (uint8_t)(g_set_config.lock_delay - 1U)
+                                : (uint8_t)(SETTINGS_LOCK_LEVELS - 1U);
+    }
     Set_Sys_Save();
 }
 
@@ -494,15 +547,8 @@ void Set_Sys_Run(void)
                 }
                 else
                 {
-                    if (sel == 0U)
-                    {
-                        page = 0U;
-                        sel = 4U;
-                    }
-                    else
-                    {
-                        sel = 0U;
-                    }
+                    if (sel == 0U) { page = 0U; sel = 4U; }
+                    else sel = (uint8_t)(sel - 1U);
                 }
                 break;
             case '8':
@@ -520,14 +566,16 @@ void Set_Sys_Run(void)
                 }
                 else
                 {
-                    sel = (sel < 1U) ? 1U : 0U;
+                    sel = (sel < 2U) ? (uint8_t)(sel + 1U) : 0U;
                 }
                 break;
             case '4':
                 if (page == 0U && sel < 5U) Set_Change(sel, -1);
+                else if (page == 1U && sel == 2U) Set_ChangeLock(-1);
                 break;
             case '6':
                 if (page == 0U && sel < 5U) Set_Change(sel, 1);
+                else if (page == 1U && sel == 2U) Set_ChangeLock(1);
                 break;
             case '#':
                 if (page == 1U && sel == 0U)
