@@ -35,6 +35,7 @@ static const uint8_t taskwatch_periodic[TASKWATCH_COUNT] = {
 };
 static volatile uint32_t taskwatch_beat[TASKWATCH_COUNT];
 static uint8_t taskwatch_hang[TASKWATCH_COUNT];
+static uint8_t taskwatch_suspect[TASKWATCH_COUNT];
 static uint32_t taskwatch_last_check = 0U;
 
 void TaskWatch_Beat(uint8_t id)
@@ -43,6 +44,7 @@ void TaskWatch_Beat(uint8_t id)
 
     taskwatch_beat[id] = HAL_GetTick();
     taskwatch_hang[id] = 0U;
+    taskwatch_suspect[id] = 0U;
 }
 
 void TaskWatch_Check(void)
@@ -81,12 +83,14 @@ void TaskWatch_Check(void)
         if (st == eSuspended)
         {
             taskwatch_hang[i] = 0U;
+            taskwatch_suspect[i] = 0U;
             continue;
         }
 
         if ((now - taskwatch_beat[i]) < TASKWATCH_TIMEOUT_MS)
         {
             taskwatch_hang[i] = 0U;
+            taskwatch_suspect[i] = 0U;
             continue;
         }
 
@@ -94,12 +98,22 @@ void TaskWatch_Check(void)
         if (taskwatch_periodic[i] == 0U && st == eBlocked)
         {
             taskwatch_hang[i] = 0U;
+            taskwatch_suspect[i] = 0U;
             continue;
         }
 
         if (taskwatch_hang[i] != 0U) continue;
 
+        /* 任务刚被唤醒但尚未跑心跳时可能短暂处于 eReady，
+           先标记一次，下一轮仍异常才正式判 HANG。 */
+        if (taskwatch_suspect[i] == 0U)
+        {
+            taskwatch_suspect[i] = 1U;
+            continue;
+        }
+
         taskwatch_hang[i] = 1U;
+        taskwatch_suspect[i] = 0U;
         memcpy(text, "HANG ", 5U);
         strncpy(text + 5U, taskwatch_names[i], sizeof(text) - 1U - 5U);
         text[sizeof(text) - 1U] = '\0';

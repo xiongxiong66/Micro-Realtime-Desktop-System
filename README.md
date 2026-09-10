@@ -347,6 +347,6 @@ build/Debug/test1.elf
 当前编译占用：
 
 ```text
-RAM:   19576 B / 20 KB   (95.59%)
-FLASH: 62936 B / 64 KB   (96.03%)
+RAM:   19584 B / 20 KB   (95.63%)
+FLASH: 63012 B / 64 KB   (96.15%)
 ```

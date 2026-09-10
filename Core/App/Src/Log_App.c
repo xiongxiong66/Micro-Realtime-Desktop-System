@@ -815,6 +815,7 @@ static void Log_TaskViewer_Run(void)
     uint8_t snap_ord = 0U;
     uint8_t page = 0U;
     uint8_t need_render = 1U;
+    uint8_t start_at_latest = 1U;
     char key;
 
     for (;;)
@@ -848,6 +849,11 @@ static void Log_TaskViewer_Run(void)
             continue;
         }
 
+        if (start_at_latest != 0U)
+        {
+            snap_ord = (uint8_t)(snap_count - 1U);
+            start_at_latest = 0U;
+        }
         if (snap_ord >= snap_count) snap_ord = (uint8_t)(snap_count - 1U);
 
         if (!TaskSnap_GetSnapshotHeader(snap_ord, &header))

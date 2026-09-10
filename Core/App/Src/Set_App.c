@@ -6,6 +6,7 @@
   */
 
 #include "Set_App.h"
+#include "TaskWatch.h"
 #include "Oled_App.h"
 #include "Music_App.h"
 #include "Monitor_App.h"
@@ -340,6 +341,8 @@ static void Set_RtcSet(void)
             continue;
         }
 
+        TaskWatch_Beat(TASKWATCH_OLED);
+
         if (key == '2') sel = (sel > 0U) ? (uint8_t)(sel - 1U) : 4U;
         else if (key == '8') sel = (sel < 4U) ? (uint8_t)(sel + 1U) : 0U;
         else if (key == '4') Set_RtcAdjust(&t, sel, -1);
@@ -537,6 +540,8 @@ void Set_Sys_Run(void)
         {
             continue;
         }
+
+        TaskWatch_Beat(TASKWATCH_OLED);
 
         switch (key)
         {
