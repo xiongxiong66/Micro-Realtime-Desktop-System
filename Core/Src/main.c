@@ -68,10 +68,10 @@ SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim3;
 
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
+/* Definitions for LockApp */
+osThreadId_t LockTaskHandle;
+const osThreadAttr_t LockTask_attributes = {
+  .name = "LockApp",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
@@ -145,7 +145,7 @@ static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_I2C2_Init(void);
-void StartDefaultTask(void *argument);
+void StartLockTask(void *argument);
 void Oled_Task(void *argument);
 void Sw_Adc_Task(void *argument);
 void MKey_Task(void *argument);
@@ -237,8 +237,8 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  /* creation of LockApp */
+  LockTaskHandle = osThreadNew(StartLockTask, NULL, &LockTask_attributes);
 
   /* creation of oled */
   oledHandle = osThreadNew(Oled_Task, NULL, &oled_attributes);
@@ -613,14 +613,14 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_StartLockTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Function implementing the LockApp thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+/* USER CODE END Header_StartLockTask */
+void StartLockTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
   Screen_Lock_Task_Sys();

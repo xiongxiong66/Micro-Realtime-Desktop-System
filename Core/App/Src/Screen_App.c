@@ -19,7 +19,7 @@
 
 extern osThreadId_t oledHandle;
 extern osThreadId_t LogHandle;
-extern osThreadId_t defaultTaskHandle;
+extern osThreadId_t LockTaskHandle;
 extern osThreadId_t App_FileHandle;
 
 #define SCREEN_SUSP_OLED     0x01U
@@ -146,9 +146,9 @@ void Screen_Sys_Wake(void)
     if (lock_needed != 0U)
     {
         screen_lock_requested = 1U;
-        if (defaultTaskHandle != NULL)
+        if (LockTaskHandle != NULL)
         {
-            (void)osThreadFlagsSet(defaultTaskHandle, SCREEN_LOCK_FLAG);
+            (void)osThreadFlagsSet(LockTaskHandle, SCREEN_LOCK_FLAG);
         }
         Log_Write(LOG_TYPE_APP, "WAKE");
         return;

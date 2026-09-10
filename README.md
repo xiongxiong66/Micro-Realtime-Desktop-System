@@ -38,7 +38,7 @@
 | 任务 | 栈大小 | CMSIS 优先级 | 主要运行方式 | 职责 |
 |------|--------|--------------|--------------|------|
 | `Watchdog` | 512B | `osPriorityAboveNormal` | 200ms 周期 | 检查任务心跳、刷新 IWDG；深睡眠也不挂起 |
-| `defaultTask` | 512B | `osPriorityNormal` | 线程标志事件驱动 | 锁屏登录任务，唤醒需要密码时显示登录页 |
+| `LockApp` | 512B | `osPriorityNormal` | 线程标志事件驱动 | 由 CubeMX defaultTask 重命名，唤醒需要密码时显示锁屏登录页 |
 | `MKey` | 512B | `osPriorityLow1` | 10ms / 50ms / 200ms | 矩阵键盘消抖扫描、息屏判断、按键入队、唤醒屏幕 |
 | `Sw_Adc` | 512B | `osPriorityLow1` | 20ms / 200ms | 摇杆 ADC 采样、光标队列、输入设备检测、唤醒屏幕 |
 | `Log` | 512B | `osPriorityLow1` | 队列 100ms 轮询，1s 刷盘，10s 保存头部 | 日志队列 → W25Q64 环形区 |
@@ -103,7 +103,7 @@ FreeRTOS 还会自动创建 `IDLE` 和 `Tmr Svc` 任务。
 - 亮屏时：`MKey` 10ms、`Sw_Adc` 20ms，界面任务正常刷新。
 - 息屏后：OLED 关屏，`Oled`、`Log` 挂起；`MKey` 降为 50ms，`Sw_Adc` 降为 200ms。
 - 若音乐正在播放，`MusicPlay` 继续运行，不进入 tickless 睡眠。
-- 若息屏且无音乐（深睡眠）：`Oled / Log / App_File / MusicPlay` 挂起，`defaultTask` 作为锁屏任务保持阻塞等待，只保留 `MKey / Sw_Adc / Watchdog` 运行。
+- 若息屏且无音乐（深睡眠）：`Oled / Log / App_File / MusicPlay` 挂起，`LockApp` 作为锁屏任务保持阻塞等待，只保留 `MKey / Sw_Adc / Watchdog` 运行。
 - 深睡眠时 `Watchdog` 不挂起，保持每 200ms 喂狗，避免正常睡眠触发 IWDG 复位。
 - 空闲时 `vPortSuppressTicksAndSleep()` 使用 SysTick 设置睡眠时长进入 `WFI`；睡眠前停 HAL 时间基准 TIM4，醒来后补偿 RTOS tick 和 `uwTick`，再恢复 TIM4。
 - 按键或摇杆活动会通过 `Screen_Sys_Wake()` 唤醒；按 `A` 强制息屏后，唤醒必须重新输入密码。
@@ -353,5 +353,5 @@ build/Debug/test1.elf
 
 ```text
 RAM:   19592 B / 20 KB   (95.66%)
-FLASH: 63596 B / 64 KB   (97.04%)
+FLASH: 63592 B / 64 KB   (97.03%)
 ```
