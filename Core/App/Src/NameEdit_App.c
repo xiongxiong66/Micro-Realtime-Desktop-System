@@ -8,6 +8,7 @@
 #include "NameEdit_App.h"
 #include "Oled_App.h"
 #include "Screen_App.h"
+#include "UiInput.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include <string.h>
@@ -42,7 +43,7 @@ uint8_t NameEdit_Run(char *name, uint8_t max_len, uint8_t prefill,
         OLED_PrintChar('_');
         OLED_Display();
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }

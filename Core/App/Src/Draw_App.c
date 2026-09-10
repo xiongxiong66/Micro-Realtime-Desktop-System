@@ -13,6 +13,7 @@
 #include "Set_App.h"
 #include "Log_App.h"
 #include "FileTab.h"
+#include "UiInput.h"
 #include "NameEdit_App.h"
 #include "Confirm_App.h"
 #include "cmsis_os.h"
@@ -868,7 +869,7 @@ static void draw_selection(void)
 
         draw_select_render(page, sel);
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }

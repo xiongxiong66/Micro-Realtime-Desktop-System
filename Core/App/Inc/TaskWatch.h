@@ -18,6 +18,12 @@
 #define TASKWATCH_COUNT 6U
 
 void TaskWatch_Beat(uint8_t id);
+void TaskWatch_Refresh(uint8_t id);
+void TaskWatch_WaitBegin(uint8_t id);
+void TaskWatch_WaitEnd(uint8_t id);
+uint8_t TaskWatch_CurrentUiId(void);
+void TaskWatch_BeatCurrentUi(void);
+void TaskWatch_DebugRequestCurrentUi(void);
 void TaskWatch_Check(void);
 uint8_t TaskWatch_IsOk(uint8_t id);
 uint8_t TaskWatch_AnyHang(void);

@@ -15,6 +15,7 @@
 #include "Confirm_App.h"
 #include "buzzer.h"
 #include "Log_App.h"
+#include "UiInput.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "sflash.h"
@@ -290,7 +291,7 @@ void Music_Play(uint8_t idx)
             Music_Play_Render(name);
         }
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, 100U) == osOK)
+        if (Ui_KeyGet(&key, 100U) == osOK)
         {
             if (key == '1')
             {
@@ -375,7 +376,7 @@ static void Music_Perf_Run(void)
         TaskWatch_Beat(TASKWATCH_OLED);
         Music_Perf_Render(last_key);
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }
@@ -421,8 +422,10 @@ void Music_Play_Task_Sys(void)
                 Buzzer_Stop();
             }
 
+            TaskWatch_WaitBegin(TASKWATCH_MUSIC);
             flags = osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE,
                                       osFlagsWaitAny, (uint32_t)dur);
+            TaskWatch_WaitEnd(TASKWATCH_MUSIC);
             (void)flags;
             Buzzer_Stop();
             continue;
@@ -460,8 +463,10 @@ void Music_Play_Task_Sys(void)
             {
                 music_bg_active = 0U;
                 Buzzer_Stop();
+                TaskWatch_WaitBegin(TASKWATCH_MUSIC);
                 osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE,
                                   osFlagsWaitAny, osWaitForever);
+                TaskWatch_WaitEnd(TASKWATCH_MUSIC);
                 continue;
             }
 
@@ -483,8 +488,10 @@ void Music_Play_Task_Sys(void)
                 Buzzer_Stop();
             }
 
+            TaskWatch_WaitBegin(TASKWATCH_MUSIC);
             flags = osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE,
                                       osFlagsWaitAny, (uint32_t)dur);
+            TaskWatch_WaitEnd(TASKWATCH_MUSIC);
 
             if ((flags & MUSIC_BG_FLAG_UPDATE) != 0U)
             {
@@ -512,8 +519,10 @@ void Music_Play_Task_Sys(void)
         else
         {
             Buzzer_Stop();
+            TaskWatch_WaitBegin(TASKWATCH_MUSIC);
             osThreadFlagsWait(MUSIC_BG_FLAG_UPDATE,
                               osFlagsWaitAny, osWaitForever);
+            TaskWatch_WaitEnd(TASKWATCH_MUSIC);
         }
     }
 }
@@ -641,7 +650,7 @@ static void music_selection(void)
 
         music_render(page, sel);
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }
@@ -725,7 +734,7 @@ static void music_menu(void)
     {
         music_menu_render(sel);
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }

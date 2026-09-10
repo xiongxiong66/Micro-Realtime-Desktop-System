@@ -11,6 +11,7 @@
 #include "Music_App.h"
 #include "Monitor_App.h"
 #include "Log_App.h"
+#include "UiInput.h"
 #include "buzzer.h"
 #include "DS3231.h"
 #include "Screen_App.h"
@@ -336,7 +337,7 @@ static void Set_RtcSet(void)
     {
         Set_RtcRender(sel, &t);
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }
@@ -486,7 +487,7 @@ static uint8_t Set_EnterPin(char *buf, uint8_t max_len, const char *title)
         OLED_PrintChar('_');
         OLED_Display();
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }
@@ -536,7 +537,7 @@ void Set_Sys_Run(void)
     {
         Set_Render(page, sel);
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }

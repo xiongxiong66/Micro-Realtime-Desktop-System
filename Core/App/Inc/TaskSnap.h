@@ -59,5 +59,6 @@ uint8_t TaskSnap_GetSnapshotHeader(uint8_t ordinal, TaskSnapHeader_t *header);
 uint8_t TaskSnap_GetSummary(uint8_t ordinal, TaskSnapSummary_t *summary);
 uint8_t TaskSnap_GetEntry(uint8_t ordinal, uint8_t index,
                           TaskSnapEntry_t *entry);
+uint8_t TaskSnap_Delete(uint8_t ordinal);
 
 #endif /* __TASK_SNAP_H */

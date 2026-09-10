@@ -29,28 +29,99 @@ static osThreadId_t taskwatch_handles[TASKWATCH_COUNT] = {
 static const char taskwatch_names[TASKWATCH_COUNT][7] = {
     "MKey", "SwAdc", "Log", "Oled", "File", "Music"
 };
-/* 周期型任务正常只会短阻塞；事件型任务允许长时间阻塞等待输入/标志 */
-static const uint8_t taskwatch_periodic[TASKWATCH_COUNT] = {
-    1U, 1U, 1U, 0U, 0U, 0U
-};
 static volatile uint32_t taskwatch_beat[TASKWATCH_COUNT];
 static uint8_t taskwatch_hang[TASKWATCH_COUNT];
-static uint8_t taskwatch_suspect[TASKWATCH_COUNT];
+/* 1: must produce heartbeat; 0: task is in a legal wait and is not checked */
+static volatile uint8_t taskwatch_enabled[TASKWATCH_COUNT] = {
+    1U, 1U, 1U, 1U, 1U, 1U
+};
+static volatile uint8_t taskwatch_debug_hang[TASKWATCH_COUNT];
 static uint32_t taskwatch_last_check = 0U;
+
+static void TaskWatch_ReportHang(uint8_t id)
+{
+    char text[16];
+
+    if (id >= TASKWATCH_COUNT || taskwatch_hang[id] != 0U) return;
+
+    taskwatch_hang[id] = 1U;
+    memcpy(text, "HANG ", 5U);
+    strncpy(text + 5U, taskwatch_names[id], sizeof(text) - 1U - 5U);
+    text[sizeof(text) - 1U] = '\0';
+    Log_Write(LOG_TYPE_ERROR, text);
+    Log_FlushNow();
+    Monitor_Sys_ReportError();
+}
 
 void TaskWatch_Beat(uint8_t id)
 {
     if (id >= TASKWATCH_COUNT) return;
 
+    if (taskwatch_debug_hang[id] != 0U)
+    {
+        for (;;)
+        {
+            __NOP();
+        }
+    }
+
     taskwatch_beat[id] = HAL_GetTick();
     taskwatch_hang[id] = 0U;
-    taskwatch_suspect[id] = 0U;
+    taskwatch_enabled[id] = 1U;
+}
+
+void TaskWatch_Refresh(uint8_t id)
+{
+    if (id >= TASKWATCH_COUNT) return;
+
+    taskwatch_beat[id] = HAL_GetTick();
+    taskwatch_hang[id] = 0U;
+}
+
+void TaskWatch_WaitBegin(uint8_t id)
+{
+    if (id >= TASKWATCH_COUNT) return;
+
+    taskwatch_enabled[id] = 0U;
+    taskwatch_hang[id] = 0U;
+}
+
+void TaskWatch_WaitEnd(uint8_t id)
+{
+    if (id >= TASKWATCH_COUNT) return;
+
+    taskwatch_beat[id] = HAL_GetTick();
+    taskwatch_hang[id] = 0U;
+    taskwatch_enabled[id] = 1U;
+}
+
+uint8_t TaskWatch_CurrentUiId(void)
+{
+    eTaskState st;
+
+    if (App_FileHandle == NULL) return TASKWATCH_OLED;
+
+    st = eTaskGetState((TaskHandle_t)App_FileHandle);
+    if (st != eSuspended && st != eDeleted) return TASKWATCH_FILE;
+    return TASKWATCH_OLED;
+}
+
+void TaskWatch_BeatCurrentUi(void)
+{
+    TaskWatch_Beat(TaskWatch_CurrentUiId());
+}
+
+void TaskWatch_DebugRequestCurrentUi(void)
+{
+    uint8_t id = TaskWatch_CurrentUiId();
+
+    taskwatch_enabled[id] = 1U;
+    taskwatch_debug_hang[id] = 1U;
 }
 
 void TaskWatch_Check(void)
 {
     uint32_t now = HAL_GetTick();
-    char text[16];
 
     taskENTER_CRITICAL();
     if ((now - taskwatch_last_check) < TASKWATCH_CHECK_PERIOD_MS)
@@ -76,49 +147,35 @@ void TaskWatch_Check(void)
         eTaskState st;
 
         if (taskwatch_handles[i] == NULL) continue;
+
+        if (taskwatch_debug_hang[i] != 0U)
+        {
+            TaskWatch_ReportHang(i);
+            continue;
+        }
+
         if (taskwatch_beat[i] == 0U) continue;
 
-        /* 挂起是正常状态（息屏/应用切换），不参与超时判断 */
         st = eTaskGetState((TaskHandle_t)taskwatch_handles[i]);
-        if (st == eSuspended)
+        if (st == eSuspended || st == eDeleted)
         {
             taskwatch_hang[i] = 0U;
-            taskwatch_suspect[i] = 0U;
+            continue;
+        }
+
+        if (taskwatch_enabled[i] == 0U)
+        {
+            taskwatch_hang[i] = 0U;
             continue;
         }
 
         if ((now - taskwatch_beat[i]) < TASKWATCH_TIMEOUT_MS)
         {
             taskwatch_hang[i] = 0U;
-            taskwatch_suspect[i] = 0U;
             continue;
         }
 
-        /* 事件型任务阻塞等待输入/标志是正常状态，只有空转/饿死才算异常 */
-        if (taskwatch_periodic[i] == 0U && st == eBlocked)
-        {
-            taskwatch_hang[i] = 0U;
-            taskwatch_suspect[i] = 0U;
-            continue;
-        }
-
-        if (taskwatch_hang[i] != 0U) continue;
-
-        /* 任务刚被唤醒但尚未跑心跳时可能短暂处于 eReady，
-           先标记一次，下一轮仍异常才正式判 HANG。 */
-        if (taskwatch_suspect[i] == 0U)
-        {
-            taskwatch_suspect[i] = 1U;
-            continue;
-        }
-
-        taskwatch_hang[i] = 1U;
-        taskwatch_suspect[i] = 0U;
-        memcpy(text, "HANG ", 5U);
-        strncpy(text + 5U, taskwatch_names[i], sizeof(text) - 1U - 5U);
-        text[sizeof(text) - 1U] = '\0';
-        Log_Write(LOG_TYPE_ERROR, text);
-        Monitor_Sys_ReportError();
+        TaskWatch_ReportHang(i);
     }
 }
 

@@ -246,6 +246,15 @@ uint8_t TaskSnap_GetSnapshotHeader(uint8_t ordinal, TaskSnapHeader_t *header)
     return TaskSnap_ReadHeader(sector, header);
 }
 
+uint8_t TaskSnap_Delete(uint8_t ordinal)
+{
+    uint8_t sector = TaskSnap_SelectSector(ordinal);
+
+    if (sector == 0xFFU) return 0U;
+    return (SFlash_EraseSector(TASK_SNAP_SECTOR_BASE + sector) == SFLASH_OK)
+         ? 1U : 0U;
+}
+
 uint8_t TaskSnap_GetSummary(uint8_t ordinal, TaskSnapSummary_t *summary)
 {
     uint8_t sector;

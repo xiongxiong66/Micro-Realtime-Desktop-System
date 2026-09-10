@@ -81,6 +81,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/App/Src/CursorView.c
     Core/App/Src/Set_App.c
     Core/App/Src/TaskSnap.c
+    Core/App/Src/UiInput.c
     Core/App/Src/Screen_App.c
     Core/App/Src/Log_App.c
     Core/App/Src/Desktop_App.c

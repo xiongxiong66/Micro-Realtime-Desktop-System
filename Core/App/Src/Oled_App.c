@@ -4,6 +4,7 @@
 #include "Set_App.h"
 #include "Log_App.h"
 #include "Screen_App.h"
+#include "UiInput.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "main.h"
@@ -16,6 +17,8 @@ static void Oled_Lock_Sys(void)
 {
     char key;
     CursorMsg_t cur;
+
+    TaskWatch_WaitBegin(TASKWATCH_OLED);
 
     /* Discard any keys queued during the previous input. */
     //清空Key消息队列，队列有数据就进入空循环，没有则退出
@@ -42,6 +45,8 @@ static void Oled_Lock_Sys(void)
     /* Discard keys pressed while locked. */
     //清空key消息队列，队列有数据就进入空循环，没有则退出
     while (osMessageQueueGet(KeyHandle, &key, NULL, 0U) == osOK) { }
+
+    TaskWatch_WaitEnd(TASKWATCH_OLED);
 }
 
 void Oled_Login_Run(void)
@@ -65,7 +70,7 @@ void Oled_Login_Run(void)
         while (osMessageQueueGet(cursorHandle, &cur, NULL, 0U) == osOK) { }
 
         //阻塞等待，如果队列中没有数据，则一直等待，直到有数据为止
-        if (osMessageQueueGet(KeyHandle, &key, NULL, 20U) != osOK)
+        if (Ui_KeyGet(&key, 20U) != osOK)
         {
             continue;
         }

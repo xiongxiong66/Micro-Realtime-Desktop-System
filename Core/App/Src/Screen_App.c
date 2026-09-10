@@ -10,6 +10,7 @@
 #include "Log_App.h"
 #include "Music_App.h"
 #include "Oled_App.h"
+#include "TaskWatch.h"
 #include "cmsis_os.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -63,6 +64,15 @@ static void Screen_Sys_ResumeOne(osThreadId_t handle, uint8_t bit)
     {
         osThreadResume(handle);
         screen_suspended_mask &= (uint8_t)~bit;
+
+        switch (bit)
+        {
+            case SCREEN_SUSP_OLED:  TaskWatch_Refresh(TASKWATCH_OLED);  break;
+            case SCREEN_SUSP_LOG:   TaskWatch_Refresh(TASKWATCH_LOG);   break;
+            case SCREEN_SUSP_FILE:  TaskWatch_Refresh(TASKWATCH_FILE);  break;
+            case SCREEN_SUSP_MUSIC: TaskWatch_Refresh(TASKWATCH_MUSIC); break;
+            default: break;
+        }
     }
 }
 

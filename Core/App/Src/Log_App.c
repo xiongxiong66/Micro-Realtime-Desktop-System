@@ -14,6 +14,7 @@
 #include "Oled_App.h"
 #include "CursorView.h"
 #include "TaskSnap.h"
+#include "UiInput.h"
 #include "Music_App.h"
 #include "Set_App.h"
 #include "cmsis_os.h"
@@ -33,6 +34,7 @@
 #define LOG_FLUSH_ENTRIES      8U
 #define LOG_PAGE_ROWS          6U
 #define LOG_TYPE_CLEAR         0xFFU
+#define LOG_TYPE_FLUSH         0xFEU
 
 typedef struct __attribute__((packed)) {
     uint32_t magic;
@@ -151,6 +153,42 @@ static void Log_CountEntries(void)
         TaskWatch_Beat(TASKWATCH_LOG);
         osDelay(1U);
     }
+    log_total_count = count;
+}
+
+static void Log_RecoverTail(void)
+{
+    uint32_t offset = log_cur_offset;
+    uint32_t next_seq = log_next_seq;
+    uint32_t count = log_total_count;
+
+    if (log_cur_sector < LOG_DATA_BASE
+     || log_cur_sector >= LOG_DATA_BASE + LOG_DATA_SECTORS)
+    {
+        return;
+    }
+
+    while ((offset + LOG_ENTRY_SIZE) <= SFLASH_SECTOR_SIZE)
+    {
+        LogEntry_t e;
+        uint32_t addr = log_cur_sector * SFLASH_SECTOR_SIZE + offset;
+
+        if (SFlash_Read(addr, (uint8_t *)&e, LOG_ENTRY_SIZE) != SFLASH_OK)
+        {
+            break;
+        }
+        if (!Log_EntryValid(&e) || e.seq < next_seq)
+        {
+            break;
+        }
+
+        offset += LOG_ENTRY_SIZE;
+        if (count < LOG_RING_CAPACITY) count++;
+        if (e.seq >= next_seq) next_seq = e.seq + 1U;
+    }
+
+    log_cur_offset = offset;
+    log_next_seq = next_seq;
     log_total_count = count;
 }
 
@@ -295,6 +333,8 @@ static void Log_Init(void)
                 Log_Scan();
             }
         }
+        Log_RecoverTail();
+        Log_SaveHeader();
         log_ready = 1U;
         return;
     }
@@ -432,6 +472,17 @@ void Log_Write(uint8_t type, const char *text)
     (void)osMessageQueuePut(LogQueueHandle, &msg, 0U, 0U);
 }
 
+void Log_FlushNow(void)
+{
+    LogMsg_t msg;
+
+    if (LogQueueHandle == NULL) return;
+
+    msg.type = LOG_TYPE_FLUSH;
+    memset(msg.text, 0, sizeof(msg.text));
+    (void)osMessageQueuePut(LogQueueHandle, &msg, 0U, 1000U);
+}
+
 uint8_t Log_Clear(void)
 {
     LogMsg_t msg;
@@ -476,6 +527,11 @@ void Log_Task_Sys(void)
             if (msg.type == LOG_TYPE_CLEAR)
             {
                 Log_EraseAll();
+            }
+            else if (msg.type == LOG_TYPE_FLUSH)
+            {
+                Log_Flush();
+                Log_SaveHeader();
             }
             else
             {
@@ -842,7 +898,7 @@ static void Log_TaskViewer_Run(void)
                 need_render = 0U;
             }
 
-            if (osMessageQueueGet(KeyHandle, &key, NULL, 100U) != osOK) continue;
+            if (Ui_KeyGet(&key, 100U) != osOK) continue;
             if (key == '*') return;
             if (key == '1') Music_Bg_Toggle();
             need_render = 1U;
@@ -874,10 +930,28 @@ static void Log_TaskViewer_Run(void)
             need_render = 0U;
         }
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, 100U) != osOK) continue;
+        if (Ui_KeyGet(&key, 100U) != osOK) continue;
 
         if (key == '*') return;
         else if (key == '1') Music_Bg_Toggle();
+        else if (key == '0')
+        {
+            if (TaskSnap_Delete(snap_ord))
+            {
+                OLED_Clear();
+                OLED_SetCursor(16, 28);
+                OLED_PrintString("DELETED");
+                OLED_Display();
+                osDelay(300U);
+
+                if (snap_ord + 1U >= snap_count && snap_ord > 0U)
+                {
+                    snap_ord--;
+                }
+                page = 0U;
+                need_render = 1U;
+            }
+        }
         else if (key == '2')
         {
             if (page > 0U) page--;
@@ -926,7 +1000,7 @@ void Log_View_Run(void)
 
         Log_MenuRender(sel);
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, 100U) != osOK) continue;
+        if (Ui_KeyGet(&key, 100U) != osOK) continue;
 
         if (key == '*') return;
         else if (key == '1') Music_Bg_Toggle();

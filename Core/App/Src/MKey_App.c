@@ -46,6 +46,19 @@ void MKey_Task_Sys(void)
                 {
                     (void)TaskSnap_Record();
                 }
+                else if (was_off == 0U && key == '9' && Screen_Sys_ForceOffEnabled())
+                {
+                    TaskWatch_DebugRequestCurrentUi();
+                    TaskWatch_Check();
+                    if (osMessageQueuePut(KeyHandle, &key, 0U, 0U) == osOK)
+                    {
+                        mkey_events++;
+                    }
+                    else
+                    {
+                        mkey_dropped++;
+                    }
+                }
                 else if (was_off != 0U && Screen_Sys_IsLocking())
                 {
                     /* 唤醒按键只负责点亮/进入锁屏，不投递给登录前的应用 */

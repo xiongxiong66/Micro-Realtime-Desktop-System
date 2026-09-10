@@ -6,7 +6,9 @@
   */
 
 #include "Confirm_App.h"
+#include "TaskWatch.h"
 #include "Oled_App.h"
+#include "UiInput.h"
 #include "cmsis_os.h"
 #include "oled.h"
 
@@ -20,6 +22,8 @@ uint8_t Confirm_Ask(const char *title)
 
     for (;;)
     {
+        TaskWatch_BeatCurrentUi();
+
         OLED_Clear();
         OLED_SetCursor(0, 8);
         OLED_PrintString((title != NULL) ? title : "Confirm");
@@ -31,7 +35,7 @@ uint8_t Confirm_Ask(const char *title)
         OLED_PrintString("No");
         OLED_Display();
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }

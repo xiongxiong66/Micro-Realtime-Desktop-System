@@ -219,6 +219,7 @@ static void Oled_App_Run(AppId_t app)
     {
         Cursor_Suspend();
         osThreadResume(App_FileHandle);
+        TaskWatch_Refresh(TASKWATCH_FILE);
         osThreadSuspend(oledHandle);
         Cursor_Resume();
     }

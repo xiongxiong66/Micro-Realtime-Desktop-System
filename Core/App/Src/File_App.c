@@ -16,6 +16,7 @@
 #include "NameEdit_App.h"
 #include "Confirm_App.h"
 #include "FileTab.h"
+#include "UiInput.h"
 #include "cmsis_os.h"
 #include "oled.h"
 #include "sflash.h"
@@ -277,7 +278,9 @@ static void file_view_picture(void)
 
     for (;;)
     {
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) == osOK)
+        TaskWatch_Beat(TASKWATCH_FILE);
+
+        if (Ui_KeyGet(&key, osWaitForever) == osOK)
         {
             if (key == '*') return;
             else if (key == '1') Music_Bg_Toggle();
@@ -317,6 +320,8 @@ static void file_picture_menu(void)
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_FILE);
+
         uint8_t pages = (file_pic_count + FILE_PAGE_ROWS - 1U) / FILE_PAGE_ROWS;
         uint8_t used_on_page;
         uint16_t n;
@@ -331,7 +336,7 @@ static void file_picture_menu(void)
 
         file_pic_render(page, sel);
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }
@@ -427,6 +432,8 @@ static void file_music_menu(void)
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_FILE);
+
         uint8_t pages = (file_mus_count + FILE_PAGE_ROWS - 1U) / FILE_PAGE_ROWS;
         uint8_t used_on_page;
         uint16_t n;
@@ -441,7 +448,7 @@ static void file_music_menu(void)
 
         file_music_render(page, sel);
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }
@@ -553,9 +560,11 @@ static void file_table_menu(void)
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_FILE);
+
         file_table_render(&tab);
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }
@@ -586,9 +595,11 @@ static void file_main_menu(void)
 
     for (;;)
     {
+        TaskWatch_Beat(TASKWATCH_FILE);
+
         file_main_menu_render(sel);
 
-        if (osMessageQueueGet(KeyHandle, &key, NULL, osWaitForever) != osOK)
+        if (Ui_KeyGet(&key, osWaitForever) != osOK)
         {
             continue;
         }
@@ -630,6 +641,7 @@ void App_File_Task_Sys(void)
         file_main_menu();
 
         osThreadResume(oledHandle);
+        TaskWatch_Refresh(TASKWATCH_OLED);
         osThreadSuspend(osThreadGetId());
     }
 }
