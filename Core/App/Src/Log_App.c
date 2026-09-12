@@ -368,6 +368,12 @@ static void Log_Flush(void)
     log_flush_count = 0U;
 }
 
+static void Log_ReportClearFailure(void)
+{
+    Monitor_Sys_ReportError();
+    Log_Write(LOG_TYPE_ERROR, "LOG CLEAR ERR");
+}
+
 static void Log_EraseAll(void)
 {
     uint8_t failed = 0U;
@@ -417,8 +423,7 @@ static void Log_EraseAll(void)
 
     if (failed != 0U)
     {
-        Monitor_Sys_ReportError();
-        Log_Write(LOG_TYPE_ERROR, "LOG CLEAR ERR");
+        Log_ReportClearFailure();
     }
 }
 
@@ -736,6 +741,16 @@ static void Log_LogViewer_Run(void)
                 {
                     clearing = 1U;
                 }
+            }
+            else if (key == '7')
+            {
+                Log_ReportClearFailure();
+                OLED_Clear();
+                OLED_SetCursor(16, 28);
+                OLED_PrintString("DELETE FAIL");
+                OLED_Display();
+                osDelay(300U);
+                need_render = 1U;
             }
             else if (key == '#')
             {

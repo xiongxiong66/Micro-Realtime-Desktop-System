@@ -15,13 +15,14 @@ extern osMessageQueueId_t cursorHandle;
 uint8_t state = Statue_NO;
 volatile uint32_t adc_events = 0U;
 volatile uint32_t adc_dropped = 0U;
-static uint8_t cursor_suspended = 0U;
+static volatile uint8_t cursor_suspended = 0U;
 static uint8_t prev_state = Statue_NO;
 static volatile int16_t cursor_x = 64;
 static volatile int16_t cursor_y = 32;
-static int16_t last_sent_x = 64;
-static int16_t last_sent_y = 32;
-static uint8_t last_sent_button = 0U;
+static volatile int16_t last_sent_x = 64;
+static volatile int16_t last_sent_y = 32;
+static volatile uint8_t last_sent_button = 0U;
+static volatile uint8_t current_button_pressed = 0U;
 
 void Cursor_KeyMove(int16_t dx, int16_t dy)
 {
@@ -45,20 +46,21 @@ void Cursor_GetPos(int16_t *x, int16_t *y)
 
 void Cursor_Suspend(void)
 {
-    if (cursor_suspended == 0U && Sw_AdcHandle != NULL)
-    {
-        osThreadSuspend(Sw_AdcHandle);
-        cursor_suspended = 1U;
-    }
+    CursorMsg_t drop;
+
+    cursor_suspended = 1U;
+    while (osMessageQueueGet(cursorHandle, &drop, NULL, 0U) == osOK) { }
 }
 
 void Cursor_Resume(void)
 {
-    if (cursor_suspended != 0U && Sw_AdcHandle != NULL)
-    {
-        osThreadResume(Sw_AdcHandle);
-        cursor_suspended = 0U;
-    }
+    CursorMsg_t drop;
+
+    while (osMessageQueueGet(cursorHandle, &drop, NULL, 0U) == osOK) { }
+    last_sent_x = cursor_x;
+    last_sent_y = cursor_y;
+    last_sent_button = current_button_pressed;
+    cursor_suspended = 0U;
 }
 
 void Sw_Adc_Task_Sys() {
@@ -130,29 +132,29 @@ void Sw_Adc_Task_Sys() {
     int16_t divisor = (sens == 0U) ? 900 : (sens == 2U) ? 500 : 700;
 
     moved = 0U;
-    if (dx > 180 && cursor_x > 0) 
+    if (dx > 180)
     {
       int16_t step = (dx - 180) / divisor + 1;
-      cursor_x -= step;
+      if (cursor_suspended == 0U && cursor_x > 0) cursor_x -= step;
       moved = 1U;
     }
-    if (dx < -180 && cursor_x < 127)  
+    if (dx < -180)
     {
       int16_t step = (-dx - 180) / divisor + 1;
-      cursor_x += step;
+      if (cursor_suspended == 0U && cursor_x < 127) cursor_x += step;
       moved = 1U;
     }
     
-    if (dy > 180 && cursor_y < 63)  
+    if (dy > 180)
     {
       int16_t step = (dy - 180) / divisor + 1;
-      cursor_y += step;
+      if (cursor_suspended == 0U && cursor_y < 63) cursor_y += step;
       moved = 1U;
     }
-    if (dy < -180 && cursor_y > 0) 
+    if (dy < -180)
     {
       int16_t step = (-dy - 180) / divisor + 1;
-      cursor_y -= step;
+      if (cursor_suspended == 0U && cursor_y > 0) cursor_y -= step;
       moved = 1U;
     }
     
@@ -174,6 +176,7 @@ void Sw_Adc_Task_Sys() {
       btn_changed = 1U;
     }
     prev_btn_state = curr_btn;
+    current_button_pressed = button_pressed;
 
     if (state == Statue_Yes && (moved != 0U || btn_changed != 0U)) Screen_Sys_Wake();
 
@@ -181,7 +184,8 @@ void Sw_Adc_Task_Sys() {
     msg.cursor_y       = cursor_y;
     msg.button_pressed = button_pressed;
 
-    if (Screen_Sys_IsLocking() == 0U
+    if (cursor_suspended == 0U
+     && Screen_Sys_IsLocking() == 0U
      && (cursor_x != last_sent_x || cursor_y != last_sent_y
       || button_pressed != last_sent_button))
     {

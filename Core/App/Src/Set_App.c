@@ -149,6 +149,12 @@ void Set_Sys_Load(void)
     Set_Sys_Save();
 }
 
+static void Set_ReportSaveFailure(void)
+{
+    Monitor_Sys_ReportError();
+    Log_Write(LOG_TYPE_ERROR, "SET SAVE ERR");
+}
+
 void Set_Sys_Save(void)
 {
     SetRecord_t rec;
@@ -172,8 +178,7 @@ void Set_Sys_Save(void)
 
     if (SFlash_Init() != SFLASH_OK)
     {
-        Monitor_Sys_ReportError();
-        Log_Write(LOG_TYPE_ERROR, "SET SAVE ERR");
+        Set_ReportSaveFailure();
         return;
     }
 
@@ -197,9 +202,19 @@ void Set_Sys_Save(void)
     }
     else
     {
-        Monitor_Sys_ReportError();
-        Log_Write(LOG_TYPE_ERROR, "SET SAVE ERR");
+        Set_ReportSaveFailure();
     }
+}
+
+static void Set_SimulateSaveFailure(void)
+{
+    Set_ReportSaveFailure();
+
+    OLED_Clear();
+    OLED_SetCursor(16, 28);
+    OLED_PrintString("SET FAIL");
+    OLED_Display();
+    osDelay(300U);
 }
 
 void Set_Sys_ApplyBrightness(void)
@@ -422,6 +437,10 @@ static void Set_Render(uint8_t page, uint8_t sel)
         OLED_PrintString("LOCK ");
         OLED_PrintNum((uint32_t)set_lock_seconds_tab[g_set_config.lock_delay], 10);
         OLED_PrintString("s");
+
+        OLED_SetCursor(0, 32);
+        OLED_PrintString(sel == 3U ? ">" : " ");
+        OLED_PrintString("FAKE SET");
     }
     OLED_Display();
 }
@@ -572,7 +591,7 @@ void Set_Sys_Run(void)
                 }
                 else
                 {
-                    sel = (sel < 2U) ? (uint8_t)(sel + 1U) : 0U;
+                    sel = (sel < 3U) ? (uint8_t)(sel + 1U) : 0U;
                 }
                 break;
             case '4':
@@ -616,6 +635,10 @@ void Set_Sys_Run(void)
                 else if (page == 1U && sel == 1U)
                 {
                     Set_RtcSet();
+                }
+                else if (page == 1U && sel == 3U)
+                {
+                    Set_SimulateSaveFailure();
                 }
                 break;
             case '1':
